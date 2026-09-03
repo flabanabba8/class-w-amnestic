@@ -46,6 +46,17 @@ like-for-like measure; the runtime's own `input_tokens` column only counts uncac
 Caveat on cache columns: through 9Router's OpenAI-compatible endpoint the cache hit counts arrive in a non-standard
 field, so the runtime's `cache_read_tokens` reads 0 for these runs; the percentages above come from 9Router's own log.
 
+## Gemma 4 12B (local llama.cpp, Q8, RTX 4090) — 30 orders, `native` (grammar) mode
+
+| setting | score | calls | s/call | prompt tokens | notes |
+|---|---:|---:|---:|---:|---|
+| `reasoning_effort: low`, max_tokens 4000 | (8/8 then failed) | 11 | 9–30 | — | three consecutive steps spent the whole 4,000-token budget thinking about inventory arithmetic and emitted no JSON |
+| `reasoning_effort: none`, max_tokens 1500 | **0.87** (26/30) | 31 | **2.6** | 80,697 (31% cached) | zero malformed decisions (grammar), zero rejected patches; all 4 misses = trying to store on a shelf it believed had room (S03, actually full) |
+
+A local 12B model runs the loop end to end at 2.6 s per step with a flat 5.6K-char context; its misses are arithmetic,
+not format. Compared with the same model's earlier attempts, the schema fixes (string bounds, required discriminators)
+and the cached op reference are what made grammar mode usable at all.
+
 ## Kimi K3 (NVIDIA route, no prompt caching, no route prefix) — 300 orders
 
 _pending; per-call prompt tokens observed so far: ≈ 5.5K flat (1.4K context + 4.4K output schema), 0 wrong through order 14._
