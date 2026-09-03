@@ -265,7 +265,7 @@ def cmd_inspect_context(cfg: RuntimeConfig, args: argparse.Namespace) -> int:
         obs = store.get_observation(latest.observation_id)
         assert skill is not None and obs is not None
         builder = ContextBuilder(tool_specs=default_registry().specs(skill.required_tools), max_retrieved_chars=cfg.max_retrieved_chars,
-                                 max_retrieved_excerpt_chars=cfg.max_retrieved_excerpt_chars)
+                                 max_retrieved_excerpt_chars=cfg.max_retrieved_excerpt_chars, allowed_ops=skill.allowed_ops)
         ctx = builder.build(skill, store.get_state(args.run_id), obs, latest.retrieved)
         payload = ctx.model_dump(mode="json")
         label = f"(rebuilt for step {latest.step}, phase {latest.phase})"

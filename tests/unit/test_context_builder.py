@@ -110,3 +110,17 @@ def test_tool_observation_header_carries_the_request(simple_skill: SkillSpecific
     header = section.split("\n", 1)[0]
     assert 'request=' in header and '\\"path\\":\\"src\\"' in header
     assert "<data>" in section and "request" not in section.split("<data>", 1)[1]  # not duplicated in <data>
+
+
+def test_contract_lists_the_skill_allowed_ops_with_fields(simple_skill: SkillSpecification, base_state: ExecutionState):
+    from mnestic.context.builder import SECTION_CONTRACT, render_op_reference
+
+    ref = render_op_reference(["set_phase", "add_fact"])
+    assert ref.splitlines() == ["- add_fact(id?, statement, confidence?, evidence_event_ids)", "- set_phase(phase)"] or set(ref.splitlines()) == {
+        "- set_phase(phase)", "- add_fact(id?, statement, confidence?, evidence_event_ids)"}
+    ctx = ContextBuilder(allowed_ops=["set_phase"]).build(simple_skill, base_state, _obs(1, "x"))
+    contract = ctx.sections[SECTION_CONTRACT]
+    assert "- set_phase(phase)" in contract and "add_fact(" not in contract
+    full = ContextBuilder().build(simple_skill, base_state, _obs(1, "x")).sections[SECTION_CONTRACT]
+    ops_block = full.split("Patch ops available", 1)[1]
+    assert sum(1 for line in ops_block.splitlines() if line.startswith("- ")) == 29  # every op, once

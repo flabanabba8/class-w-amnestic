@@ -80,6 +80,27 @@ Keep the state small: reference large content via artifacts and event ids instea
 """
 
 
+def render_op_reference(allowed_ops: list[str] | None) -> str:
+    """One line per patch op: ``name(field, optional?)``. Cheap, cached with the instructions, and it is what the model
+    sees about ops now that field descriptions are kept out of the per-call schema."""
+    from typing import get_args
+
+    from mnestic.models.patch import PatchOp
+
+    lines = []
+    for member in get_args(get_args(PatchOp)[0]):
+        name = member.model_fields["op"].default
+        if allowed_ops is not None and name not in allowed_ops:
+            continue
+        fields = []
+        for fname, f in member.model_fields.items():
+            if fname == "op":
+                continue
+            fields.append(fname if f.is_required() else f"{fname}?")
+        lines.append(f"- {name}({', '.join(fields)})")
+    return "\n".join(lines)
+
+
 class ContextBuilder:
     """Assembles a bounded ModelContext. Holds only rendering options and tool specs."""
 
@@ -90,7 +111,9 @@ class ContextBuilder:
         max_retrieved_chars: int = 8000,
         max_retrieved_excerpt_chars: int = 1200,
         chars_per_token: float = 4.0,
+        allowed_ops: list[str] | None = None,
     ):
+        self.allowed_ops = allowed_ops
         self.tool_specs = list(tool_specs or [])
         self.max_retrieved_chars = max_retrieved_chars
         self.max_retrieved_excerpt_chars = max_retrieved_excerpt_chars
@@ -107,7 +130,8 @@ class ContextBuilder:
         state_section = self.render_state(state)
         obs_section = self.render_observation(observation)
         evidence_section = self.render_evidence(retrieved or [])
-        contract_section = f"<{SECTION_CONTRACT}>\n{OUTPUT_CONTRACT}</{SECTION_CONTRACT}>"
+        ops_ref = render_op_reference(self.allowed_ops)
+        contract_section = f"<{SECTION_CONTRACT}>\n{OUTPUT_CONTRACT}\nPatch ops available to this skill (fields; ? = optional):\n{ops_ref}\n</{SECTION_CONTRACT}>"
 
         instructions = f"{skill_section}\n\n{contract_section}"
         prompt = state_section + "\n\n" + obs_section
