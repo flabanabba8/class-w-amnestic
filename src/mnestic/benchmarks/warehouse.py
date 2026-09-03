@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai import Agent, UsageLimits
+from pydantic_ai.settings import ModelSettings
 
 from mnestic.models.skill import SkillSpecification
 from mnestic.tools.base import Tool, ToolContext, ToolResult
@@ -291,11 +293,7 @@ async def run_skillstate(reasoner: Any, *, orders: int = 60, shelves: int = 12, 
 
 async def run_react(model: Any, *, orders: int = 60, shelves: int = 12, seed: int = 7, max_tool_calls: int | None = None, model_settings: dict[str, Any] | None = None) -> BenchResult:
     """Baseline: one PydanticAI agent run; the tool loop accumulates every call/result in the transcript."""
-    from pydantic_ai import Agent, RunContext, UsageLimits
-    from pydantic_ai.settings import ModelSettings
-
     env = WarehouseEnv(shelves=shelves, orders=orders, seed=seed)
-    sizes: list[int] = []
 
     agent: Agent[None, str] = Agent(
         model, instructions=WAREHOUSE_SKILL.instructions.replace("in `important_entities`", "in your working notes")
@@ -304,24 +302,30 @@ async def run_react(model: Any, *, orders: int = 60, shelves: int = 12, seed: in
         model_settings=ModelSettings(**(model_settings or {})) if model_settings else None,  # type: ignore[typeddict-item]
     )
 
-    @agent.tool
-    async def warehouse(ctx: RunContext[None], action: Literal["store", "ship", "count"], shelf: str | None = None, item: str | None = None,
-                        qty: int | None = None, answer: int | None = None) -> str:
+    @agent.tool_plain
+    def warehouse(action: Literal["store", "ship", "count"], shelf: str | None = None, item: str | None = None,
+                  qty: int | None = None, answer: int | None = None) -> str:
         """Respond to the current order. store/ship need shelf+item+qty; count needs answer. Returns the outcome and the NEXT order."""
-        sizes.append(sum(len(json.dumps(m, default=str)) for m in ctx.messages) if ctx.messages else 0)
         return env.act(action, shelf, item, qty, answer)[1]
 
     t0 = time.time()
     status = "completed"
+    usage = None
+    max_ctx = 0
     try:
         result = await agent.run(env.initial_observation(), usage_limits=UsageLimits(request_limit=(max_tool_calls or orders * 3) + 5, tool_calls_limit=max_tool_calls or orders * 3))
         usage = result.usage
+        # transcript size at the last request = everything the model was shown on its final call
+        from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest
+
+        msgs = result.all_messages()
+        last_req = max((i for i, m in enumerate(msgs) if isinstance(m, ModelRequest)), default=-1)
+        max_ctx = len(ModelMessagesTypeAdapter.dump_json(msgs[: last_req + 1])) if last_req >= 0 else 0
     except Exception as exc:  # usage limit or model failure: score what was done
         status = f"stopped: {type(exc).__name__}: {str(exc)[:120]}"
-        usage = None
     return BenchResult("react", getattr(model, "model_name", str(model)), orders, env.score, sum(1 for r in env.log if r["correct"]), len(env.log),
-                       usage.requests if usage else len(sizes), usage.input_tokens if usage else 0, usage.output_tokens if usage else 0,
-                       max(sizes) if sizes else 0, time.time() - t0, status, env.log)
+                       usage.requests if usage else 0, usage.input_tokens if usage else 0, usage.output_tokens if usage else 0,
+                       max_ctx, time.time() - t0, status, env.log)
 
 
 def render(results: list[BenchResult]) -> str:

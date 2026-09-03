@@ -28,3 +28,22 @@ def test_scripted_policy_scores_perfectly_over_200_orders(tmp_path):
     r = asyncio.run(run_skillstate(ScriptedReasoner(warehouse_script), orders=200, shelves=12, seed=11, db_path=tmp_path / "wh.db"))
     assert r.status == "completed" and r.score == 1.0 and r.correct == 200
     assert r.max_context_chars < 9000, r.max_context_chars  # bounded regardless of horizon
+
+
+def test_react_baseline_runs_with_a_function_model():
+    """The ReAct runner must at least drive the tool loop (regression: tool type hints failed to evaluate)."""
+    from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from mnestic.benchmarks.warehouse import run_react
+
+    calls = {"n": 0}
+
+    def fn(messages, info):
+        calls["n"] += 1
+        if calls["n"] <= 3:
+            return ModelResponse(parts=[ToolCallPart(tool_name="warehouse", args={"action": "count", "answer": 0})])
+        return ModelResponse(parts=[TextPart(content="DONE")])
+
+    r = asyncio.run(run_react(FunctionModel(fn), orders=10, seed=5))
+    assert r.mode == "react" and r.steps == 3 and r.model_calls == 4 and r.status == "completed" and r.max_context_chars > 0
