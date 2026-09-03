@@ -125,7 +125,9 @@ async def test_repeated_identical_tool_action_guard(make_runtime, store, simple_
     assert out.status == RunStatus.FAILED and out.reason == "too_many_failures" and "identical tool action" in out.summary
     assert seen.count("runtime") == 1  # feedback once; the second loop detection reaches max_decision_failures
     execs = store.list_tool_executions(out.run_id)
-    assert len(execs) == 4  # 2 executed, guard fired on the 3rd request; 2 more, guard fired again -> failure
+    # The first call answers the task input (different observation), so 3 identical (action, observation) pairs need
+    # 3 executed listings before the guard fires; then 3 more before it fires again -> failure.
+    assert len(execs) == 6
     assert all(e.status == "succeeded" for e in execs)
 
 
@@ -139,7 +141,7 @@ async def test_action_cycle_is_caught_by_window(make_runtime, store, simple_skil
 
     out = await make_runtime(script, cfg=cfg).start(simple_skill, "cycle")
     assert out.status == RunStatus.FAILED and "3 times within the last 12" in out.summary
-    assert len(store.list_tool_executions(out.run_id)) == 6  # third '.' request (7th action) was intercepted
+    assert len(store.list_tool_executions(out.run_id)) == 7  # '.' after the identical 'nope' failure repeats at actions 4, 7, 10 -> intercepted at 10
 
 
 async def test_varied_tool_actions_do_not_trigger_guard(make_runtime, store, simple_skill, config):
@@ -176,3 +178,40 @@ async def test_non_consecutive_failures_do_not_accumulate(make_runtime, store, s
     out = await make_runtime(script, cfg=cfg).start(simple_skill, "go")
     assert out.status == RunStatus.COMPLETED
     assert store.get_state(out.run_id).counters.patches_rejected == 2
+
+
+async def test_identical_actions_with_new_observations_are_not_a_loop(make_runtime, store, simple_skill, config):
+    """Same tool+args in response to *different* results (e.g. a stream of identical orders) must not trip the guard."""
+    from typing import ClassVar
+
+    from pydantic import BaseModel, ConfigDict
+
+    from mnestic.tools import default_registry
+    from mnestic.tools.base import Tool, ToolContext, ToolResult
+
+    class Counter(Tool):
+        name: ClassVar[str] = "counter"
+        description: ClassVar[str] = "returns a new number each call"
+
+        class Args(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+
+        n = 0
+
+        async def run(self, args: Args, ctx: ToolContext) -> ToolResult:
+            Counter.n += 1
+            return ToolResult(ok=True, output=f"tick {Counter.n}")
+
+    reg = default_registry()
+    reg.register(Counter())
+    cfg = config.model_copy(update={"max_repeated_actions": 2, "action_window": 12, "max_decision_failures": 1})
+    skill = simple_skill.model_copy(update={"required_tools": ["counter"]})
+
+    def script(ctx):
+        kind, ev, text = obs_info(ctx)
+        if "tick 6" in text:
+            return complete(ctx)
+        return tool(ctx, "counter")
+
+    out = await make_runtime(script, tools=reg, cfg=cfg).start(skill, "count ticks")
+    assert out.status == RunStatus.COMPLETED and store.get_state(out.run_id).counters.errors == 0

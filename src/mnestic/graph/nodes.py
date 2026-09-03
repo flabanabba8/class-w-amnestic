@@ -15,6 +15,7 @@ Two kinds of state exist here and must not be confused:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 import traceback
@@ -205,8 +206,12 @@ class ApplyDecision(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
         if isinstance(action, ToolAction):
             # A model that repeats the exact same tool call is not folding results into state (it has no transcript
             # to notice with). Bounded feedback breaks the loop; the state is unchanged apart from the patch above.
-            # Cycles (A, B, C, A, B, C, …) are as common as exact repeats, so count within a sliding window.
-            signature = json.dumps({"tool": action.tool_name, "args": action.arguments}, sort_keys=True, default=str)
+            # A loop is the same action in response to the same observation. Keying on the observation too keeps
+            # legitimate repeats (e.g. identical orders arriving one after another) from tripping the guard, while
+            # cycles (A, B, C, A, B, C, …) are still caught by counting within a sliding window.
+            assert s.observation is not None
+            obs_digest = hashlib.sha1(s.observation.content.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
+            signature = json.dumps({"tool": action.tool_name, "args": action.arguments, "obs": obs_digest}, sort_keys=True, default=str)
             s.recent_action_signatures = [*s.recent_action_signatures, signature][-d.config.action_window :]
             repeats = s.recent_action_signatures.count(signature)
             if repeats >= d.config.max_repeated_actions:
