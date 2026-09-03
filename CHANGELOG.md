@@ -1,5 +1,7 @@
 # Changelog
 
+*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+
 ## 0.1.0 — 2026-09-03
 
 Initial release of Class-W Mnestic, the SKILL.state runtime.

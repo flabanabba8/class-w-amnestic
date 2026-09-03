@@ -1,5 +1,7 @@
 # Crash recovery and resume
 
+*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+
 `mnestic resume <run-id>` rebuilds the runtime from SQLite alone: the current
 `ExecutionState`, the latest `steps` row (phase + pointers) and the pending observation.
 No transcript exists to replay.

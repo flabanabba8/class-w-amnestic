@@ -1,5 +1,7 @@
 # Architectural audit (v0.1.0)
 
+*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+
 Performed after implementation, as a reviewer of "someone else's" code, looking
 specifically for accidental history leakage.
 

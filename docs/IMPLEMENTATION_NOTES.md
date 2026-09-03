@@ -1,5 +1,7 @@
 # Implementation notes and API discrepancies
 
+*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+
 Research was done against the installed packages, not from memory:
 pydantic-ai-slim 2.37.0, pydantic-graph 2.37.0, pydantic 2.13.5, Python 3.12.14,
 SQLite 3.53.1 (FTS5 available). Spike scripts verified each API before use.

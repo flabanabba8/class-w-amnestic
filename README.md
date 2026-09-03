@@ -20,6 +20,30 @@ are preserved in an append-only SQLite **archive** that the agent can query on d
 
 **THE ARCHIVE IS NOT DEFAULT MODEL CONTEXT.**
 
+## The paper
+
+This project implements the runtime architecture described in:
+
+> Sanket Badhe, Priyanka Tiwari, Jonghyun Chung. **SKILL.state: Scalable Long-Horizon Agent Skills.** EMNLP 2026.
+> arXiv:2608.26263 — [abstract](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263) · [HTML](https://arxiv.org/html/2608.26263)
+
+Its core loop (Algorithm 1): at each step *t* the model receives only the procedural specification *P*, the structured
+state Σ_t and the latest observation O_t; it emits a reasoning trace R_t (discarded), a validated state patch ΔΣ_t
+(Σ_{t+1} = Σ_t ⊕ ΔΣ_t) and an action a_t. This runtime adds what the paper leaves open: typed patch ops with evidence,
+an append-only archive with explicit retrieval, durable crash/resume, and inspectable context.
+
+```bibtex
+@inproceedings{badhe2026skillstate,
+  title     = {SKILL.state: Scalable Long-Horizon Agent Skills},
+  author    = {Badhe, Sanket and Tiwari, Priyanka and Chung, Jonghyun},
+  booktitle = {Proceedings of EMNLP},
+  year      = {2026},
+  eprint    = {2608.26263},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2608.26263}
+}
+```
+
 ## Why this is different from a chat-history agent
 
 | | chat-history / ReAct agent | Class-W Mnestic |

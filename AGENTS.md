@@ -1,5 +1,7 @@
 # AGENTS.md — guidance for coding agents working on Class-W Mnestic
 
+*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+
 ## Purpose
 
 Class-W Mnestic (Python package `mnestic`) is a long-horizon autonomous agent runtime implementing the

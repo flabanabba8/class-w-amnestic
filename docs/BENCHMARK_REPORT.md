@@ -1,5 +1,7 @@
 # Context-scaling benchmark report
 
+*Based on the paper: Badhe, Tiwari, Chung — SKILL.state: Scalable Long-Horizon Agent Skills, [arXiv:2608.26263](https://arxiv.org/abs/2608.26263).*
+
 Simulated task: 1001 steps, each producing a tool observation of 400 chars. Scripted reasoner (no model), mock `probe` tool, real runtime/graph/SQLite path.
 
 ## Measured model-context size per step (characters)

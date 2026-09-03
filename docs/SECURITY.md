@@ -1,5 +1,7 @@
 # Security
 
+*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+
 This runtime executes model-chosen actions. It is designed to be *inspectable and
 bounded*, not to be safe for unattended execution with elevated privileges. Do not run it
 as root, on machines holding secrets you cannot afford to expose, or with

@@ -173,6 +173,8 @@ def _skill_prompt_chars() -> str:
 def render_report(r: dict[str, Any]) -> str:
     lines = [
         "# Context-scaling benchmark report", "",
+        "*Based on the paper: Badhe, Tiwari, Chung — SKILL.state: Scalable Long-Horizon Agent Skills, "
+        "[arXiv:2608.26263](https://arxiv.org/abs/2608.26263).*", "",
         f"Simulated task: {r['steps']} steps, each producing a tool observation of {r['observation_chars']} chars. "
         "Scripted reasoner (no model), mock `probe` tool, real runtime/graph/SQLite path.", "",
         "## Measured model-context size per step (characters)", "",

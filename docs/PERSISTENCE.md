@@ -1,5 +1,7 @@
 # Persistence
 
+*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+
 SQLite is a first-class component (`src/mnestic/storage/`). Settings: WAL journal,
 `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=30s`, explicit reentrant
 transactions (`BEGIN IMMEDIATE … COMMIT/ROLLBACK`).

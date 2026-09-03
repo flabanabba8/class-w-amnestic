@@ -1,5 +1,7 @@
 # Context Invariants
 
+*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+
 **THE ARCHIVE IS NOT DEFAULT MODEL CONTEXT.**
 
 These invariants define what the model may see at an ordinary reasoning step.
