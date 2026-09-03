@@ -151,3 +151,29 @@ def test_allowed_actions_restrict_the_decision_schema():
     assert "human_input" not in json.dumps(cls.model_json_schema())
     with pytest.raises(ValueError, match="unknown action kinds"):
         decision_type_for(None, ["teleport"])
+
+
+def test_typed_tool_action_variants_enforce_tool_arguments():
+    from pydantic import BaseModel, ConfigDict
+
+    from mnestic.models.decision import decision_type_for
+
+    class Args(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        action: str
+        answer: str | None = None
+
+    from mnestic.models.decision import normalize_decision
+
+    cls = decision_type_for(["set_phase"], ["tool"], {"registry": Args})
+    ok = normalize_decision(cls.model_validate({"state_patch": {"expected_state_version": 0, "ops": []},
+                                                "action": {"kind": "tool", "tool_name": "registry", "arguments": {"action": "answer", "answer": "8002"}}}))
+    assert type(ok) is AgentDecision and ok.action.tool_name == "registry" and ok.action.arguments == {"action": "answer", "answer": "8002"}
+    with pytest.raises(ValidationError):  # unknown argument is rejected at the schema level
+        cls.model_validate({"state_patch": {"expected_state_version": 0, "ops": []},
+                            "action": {"kind": "tool", "tool_name": "registry", "arguments": {"action": "answer", "bogus": 1}}})
+    with pytest.raises(ValidationError):  # unknown tool is rejected
+        cls.model_validate({"state_patch": {"expected_state_version": 0, "ops": []},
+                            "action": {"kind": "tool", "tool_name": "other", "arguments": {}}})
+    schema = json.dumps(cls.model_json_schema())
+    assert '"registry"' in schema and '"answer"' in schema

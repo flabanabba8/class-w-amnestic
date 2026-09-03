@@ -21,7 +21,7 @@ from pydantic_ai.settings import ModelSettings
 
 from mnestic.agent.reasoner import ReasonerResult, UsageRecord
 from mnestic.context.builder import ModelContext
-from mnestic.models.decision import AgentDecision, decision_type_for
+from mnestic.models.decision import AgentDecision, decision_type_for, normalize_decision
 
 
 def build_model(model: str | Model) -> Model:
@@ -47,6 +47,7 @@ class PydanticAIReasoner:
         wall_clock_timeout: float | None = None,
         allowed_ops: list[str] | None = None,
         allowed_actions: list[str] | None = None,
+        tool_args: dict[str, type[Any]] | None = None,
     ):
         """``wall_clock_timeout`` bounds the *whole* step (all in-step retries) in seconds. Provider/httpx timeouts
         are per-read and do not fire when a proxy keeps the connection alive, so this is enforced with
@@ -56,7 +57,19 @@ class PydanticAIReasoner:
         self.model_name = getattr(self.model, "model_name", str(model))
         self.retries = retries
         self.model_settings = ModelSettings(**model_settings) if model_settings else None  # type: ignore[typeddict-item]
-        decision_cls = decision_type_for(allowed_ops, allowed_actions)
+        self._output_mode = output_mode
+        self._build_agent(allowed_ops, allowed_actions, tool_args)
+
+    def bind(self, skill: Any, tools: Any) -> None:
+        """Rebuild the decision schema for ``skill``: its allowed ops/actions and typed arguments for its required tools.
+        Called by the Runtime before a run starts, so tool parameters are enforced by the output schema."""
+        tool_args = {name: tools.get(name).Args for name in (skill.required_tools or []) if name in tools.names()}
+        self._build_agent(skill.allowed_ops, skill.allowed_actions, tool_args or None)
+
+    def _build_agent(self, allowed_ops: list[str] | None, allowed_actions: list[str] | None, tool_args: dict[str, type[Any]] | None) -> None:
+        output_mode = self._output_mode
+        retries = self.retries
+        decision_cls = decision_type_for(allowed_ops, allowed_actions, tool_args)
         self.output_schema_chars = len(json.dumps(decision_cls.model_json_schema(), separators=(",", ":")))
         output_type: Any
         if output_mode == "native":
@@ -112,7 +125,7 @@ class PydanticAIReasoner:
         # Messages from *this* step are archived for audit and then discarded — never re-sent.
         raw = json.loads(ModelMessagesTypeAdapter.dump_json(result.all_messages()))
         return ReasonerResult(
-            decision=result.output,
+            decision=normalize_decision(result.output),
             model_name=self.model_name,
             usage=UsageRecord(
                 input_tokens=usage.input_tokens, output_tokens=usage.output_tokens, requests=usage.requests,

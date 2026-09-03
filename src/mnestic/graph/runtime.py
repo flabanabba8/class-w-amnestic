@@ -88,6 +88,7 @@ class Runtime:
         missing = self.tools.missing(skill.required_tools)
         if missing:
             raise ValueError(f"skill {skill.key} requires unavailable tools: {missing}")
+        self._bind(skill)
         state = ExecutionState(
             run_id=run_id, skill_id=skill.skill_id, skill_version=skill.version, state_schema_version=skill.state_schema_version,
             objective=Objective(statement=task_input[:2000] or skill.description[:2000], success_criteria=list(skill.completion_criteria[:20])),
@@ -137,6 +138,7 @@ class Runtime:
             raise RuntimeError(f"skill {meta.skill_id}@{meta.skill_version} missing from database")
         if skill.content_hash != meta.skill_content_hash:
             raise RuntimeError("skill content hash changed since the run started; skills are immutable during a run")
+        self._bind(skill)
         state = self.store.get_state(run_id)
         if state.status in TERMINAL_STATUSES:
             raise RuntimeError(f"run {run_id} is {state.status.value}; nothing to resume")
@@ -227,6 +229,12 @@ class Runtime:
         raise RuntimeError(f"unknown step phase {phase!r}")
 
     # ---- internals -------------------------------------------------------------------------
+
+    def _bind(self, skill: SkillSpecification) -> None:
+        """Let the reasoner shape its output schema to this skill (ops, actions, typed tool arguments)."""
+        bind = getattr(self.reasoner, "bind", None)
+        if callable(bind):
+            bind(skill, self.tools)
 
     def _graph_state(self, run_id: str, state: ExecutionState, step: int, obs: Observation | None,
                      retrieved: list[MemoryResult], max_steps: int | None) -> RuntimeGraphState:

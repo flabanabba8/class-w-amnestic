@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -84,15 +84,20 @@ def resolve_allowed_ops(allowed_ops: list[str] | None) -> list[str]:
 ACTION_KINDS = ["tool", "human_input", "continue"]
 
 
-def decision_type_for(allowed_ops: list[str] | None, allowed_actions: list[str] | None = None) -> type[AgentDecision]:
-    """Build an AgentDecision subclass whose StatePatch accepts only the resolved ``allowed_ops`` and whose ``action``
-    accepts only ``allowed_actions`` kinds (e.g. no ``human_input`` for unattended skills).
+def decision_type_for(
+    allowed_ops: list[str] | None,
+    allowed_actions: list[str] | None = None,
+    tool_args: dict[str, type[Any]] | None = None,
+) -> type[AgentDecision]:
+    """Build an AgentDecision subclass whose StatePatch accepts only the resolved ``allowed_ops``, whose ``action``
+    accepts only ``allowed_actions`` kinds (e.g. no ``human_input`` for unattended skills), and — when ``tool_args``
+    maps tool names to their argument models — whose tool action is a typed variant per tool, so the output schema
+    (and a grammar-constrained decoder) enforces each tool's parameters exactly like native tool calling.
 
-    The runtime still validates and applies with the full ``StatePatch``; this only shrinks/restricts the output schema
-    the model is shown (the full union is ~16K chars as sent; a five-op skill needs a third of that).
+    The runtime still validates and applies with the full ``StatePatch``; this only shapes the schema the model is shown.
     """
     allowed_ops = resolve_allowed_ops(allowed_ops)
-    from typing import Annotated, Any, Union, get_args
+    from typing import Annotated, Union, get_args
 
     from pydantic import Field as _Field
     from pydantic import create_model
@@ -104,11 +109,41 @@ def decision_type_for(allowed_ops: list[str] | None, allowed_actions: list[str] 
     op_union: Any = Annotated[Union[tuple(members)], _Field(discriminator="op")]  # noqa: UP007 - runtime union construction  # type: ignore[valid-type]
     patch_cls = create_model("StatePatch", __base__=StatePatch, ops=(list[op_union], _Field(default_factory=list, max_length=50)))  # type: ignore[valid-type]
     fields: dict[str, Any] = {"state_patch": (patch_cls, ...)}
-    if allowed_actions is not None:
-        unknown = set(allowed_actions) - set(ACTION_KINDS)
+    if allowed_actions is not None or tool_args:
+        wanted = set(allowed_actions) if allowed_actions is not None else set(ACTION_KINDS)
+        unknown = wanted - set(ACTION_KINDS)
         if unknown:
             raise ValueError(f"unknown action kinds in allowed_actions: {sorted(unknown)}")
-        kinds = [m for m in get_args(get_args(Action)[0]) if m.model_fields["kind"].default in set(allowed_actions)]
-        action_union: Any = Annotated[Union[tuple(kinds)], _Field(discriminator="kind")] if len(kinds) > 1 else kinds[0]  # noqa: UP007  # type: ignore[valid-type]
+        from typing import Literal
+
+        from mnestic.models.action import ToolAction
+
+        kinds: list[Any] = []
+        for m in get_args(get_args(Action)[0]):
+            k = m.model_fields["kind"].default
+            if k not in wanted:
+                continue
+            if k == "tool" and tool_args:
+                # One typed variant per tool: {"kind": "tool", "tool_name": "<name>", "arguments": <Args>}.
+                for name, args_cls in tool_args.items():
+                    kinds.append(create_model(f"ToolAction_{name}", __base__=ToolAction,
+                                              tool_name=(Literal[name], ...), arguments=(args_cls, ...)))  # type: ignore[valid-type]
+            else:
+                kinds.append(m)
+        # tool variants share kind="tool", so discriminate on kind only when every variant has a distinct kind
+        if len(kinds) == 1:
+            action_union: Any = kinds[0]
+        elif len({k.model_fields["kind"].default for k in kinds}) == len(kinds):
+            action_union = Annotated[Union[tuple(kinds)], _Field(discriminator="kind")]  # noqa: UP007  # type: ignore[valid-type]
+        else:
+            action_union = Union[tuple(kinds)]  # noqa: UP007  # type: ignore[valid-type]
         fields["action"] = (action_union | None, None)
     return create_model("AgentDecision", __base__=AgentDecision, **fields)  # type: ignore[call-overload,no-any-return]
+
+
+def normalize_decision(decision: AgentDecision) -> AgentDecision:
+    """Convert a decision produced by a skill-shaped subclass (typed tool arguments) into the plain runtime type
+    (``arguments`` as a dict), so the rest of the runtime never sees per-skill classes."""
+    if type(decision) is AgentDecision:
+        return decision
+    return AgentDecision.model_validate(decision.model_dump(mode="json"))
