@@ -264,6 +264,8 @@ class BenchResult:
     status: str
     per_order: list[dict[str, Any]] = field(default_factory=list)
     notes: str = ""
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 async def run_skillstate(reasoner: Any, *, orders: int = 60, shelves: int = 12, seed: int = 7, db_path: Any = None, max_steps: int | None = None) -> BenchResult:
@@ -288,7 +290,7 @@ async def run_skillstate(reasoner: Any, *, orders: int = 60, shelves: int = 12, 
     m = store.run_metrics(out.run_id)
     return BenchResult("skillstate", getattr(reasoner, "model_name", "?"), orders, env.score, sum(1 for r in env.log if r["correct"]), out.steps,
                        m["model_calls"] or 0, m["input_tokens"] or 0, m["output_tokens"] or 0, m["max_context_chars"] or 0, time.time() - t0,
-                       out.status.value, env.log, f"run_id={out.run_id} db={db_path}")
+                       out.status.value, env.log, f"run_id={out.run_id} db={db_path}", m["cache_read_tokens"] or 0, m["cache_write_tokens"] or 0)
 
 
 async def run_react(model: Any, *, orders: int = 60, shelves: int = 12, seed: int = 7, max_tool_calls: int | None = None, model_settings: dict[str, Any] | None = None) -> BenchResult:
@@ -325,12 +327,13 @@ async def run_react(model: Any, *, orders: int = 60, shelves: int = 12, seed: in
         status = f"stopped: {type(exc).__name__}: {str(exc)[:120]}"
     return BenchResult("react", getattr(model, "model_name", str(model)), orders, env.score, sum(1 for r in env.log if r["correct"]), len(env.log),
                        usage.requests if usage else 0, usage.input_tokens if usage else 0, usage.output_tokens if usage else 0,
-                       max_ctx, time.time() - t0, status, env.log)
+                       max_ctx, time.time() - t0, status, env.log, "", usage.cache_read_tokens if usage else 0, usage.cache_write_tokens if usage else 0)
 
 
 def render(results: list[BenchResult]) -> str:
-    lines = ["| mode | model | orders | score | correct | steps | model calls | input tok | output tok | max ctx chars | wall s | status |",
-             "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
+    lines = ["| mode | model | orders | score | correct | steps | model calls | input tok (uncached) | cache read | cache write | total shown | output tok | max ctx chars | wall s | status |",
+             "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     for r in results:
-        lines.append(f"| {r.mode} | {r.model} | {r.orders} | {r.score:.2f} | {r.correct} | {r.steps} | {r.model_calls} | {r.input_tokens:,} | {r.output_tokens:,} | {r.max_context_chars:,} | {r.wall_seconds:.0f} | {r.status} |")
+        total = r.input_tokens + r.cache_read_tokens + r.cache_write_tokens
+        lines.append(f"| {r.mode} | {r.model} | {r.orders} | {r.score:.2f} | {r.correct} | {r.steps} | {r.model_calls} | {r.input_tokens:,} | {r.cache_read_tokens:,} | {r.cache_write_tokens:,} | {total:,} | {r.output_tokens:,} | {r.max_context_chars:,} | {r.wall_seconds:.0f} | {r.status} |")
     return "\n".join(lines)

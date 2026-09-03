@@ -278,8 +278,21 @@ def _m001_initial(conn: sqlite3.Connection, fts_enabled: bool) -> None:
         )
 
 
+def _m002_cache_tokens(conn: sqlite3.Connection, fts_enabled: bool) -> None:
+    run_script(
+        conn,
+        """
+        ALTER TABLE model_calls ADD COLUMN cache_read_tokens INTEGER;
+        ALTER TABLE model_calls ADD COLUMN cache_write_tokens INTEGER;
+        ALTER TABLE step_metrics ADD COLUMN cache_read_tokens INTEGER;
+        ALTER TABLE step_metrics ADD COLUMN cache_write_tokens INTEGER;
+        """,
+    )
+
+
 MIGRATIONS: list[tuple[int, str, Migration]] = [
     (1, "initial schema", _m001_initial),
+    (2, "prompt-cache token accounting", _m002_cache_tokens),
 ]
 
 

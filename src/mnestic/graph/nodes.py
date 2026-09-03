@@ -85,7 +85,8 @@ class Reason(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
                 status="ok" if result.ok else "error", error=result.error,
                 decision_json=result.decision.model_dump_json() if result.decision else None,
                 raw_messages_json=json.dumps(result.raw_messages) if result.raw_messages else None,
-                duration_ms=result.duration_ms,
+                duration_ms=result.duration_ms, cache_read_tokens=result.usage.cache_read_tokens,
+                cache_write_tokens=result.usage.cache_write_tokens,
             )
             d.store.append_event(
                 s.run_id, s.step, EventType.MODEL_REQUEST,
@@ -504,6 +505,8 @@ def _flush_step_metrics(ctx: Ctx) -> None:
         context_tokens_est=s.context.approx_tokens if s.context else None,
         input_tokens=s.last_usage.input_tokens if s.last_usage else None,
         output_tokens=s.last_usage.output_tokens if s.last_usage else None,
+        cache_read_tokens=s.last_usage.cache_read_tokens if s.last_usage else None,
+        cache_write_tokens=s.last_usage.cache_write_tokens if s.last_usage else None,
         state_bytes=state_size_bytes(s.execution_state),
         model_calls=s.model_calls_this_step, tool_calls=s.tool_calls_this_step, retrievals=s.retrievals_this_step,
         patch_applied=s.patches_applied_this_step, elapsed_ms=elapsed,

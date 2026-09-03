@@ -14,9 +14,18 @@ from mnestic.models.decision import AgentDecision
 
 class UsageRecord(BaseModel):
     input_tokens: int | None = None
+    """Uncached input tokens as reported by the provider (what is typically billed at full price)."""
     output_tokens: int | None = None
+    cache_read_tokens: int = 0
+    """Prompt-cache hits: tokens the model still processed but the provider read from cache."""
+    cache_write_tokens: int = 0
     requests: int = 1
     retries: int = 0
+
+    @property
+    def total_input_tokens(self) -> int:
+        """Everything the model was shown: uncached + cached."""
+        return (self.input_tokens or 0) + self.cache_read_tokens + self.cache_write_tokens
 
 
 class ReasonerResult(BaseModel):

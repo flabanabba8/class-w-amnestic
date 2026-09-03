@@ -112,6 +112,7 @@ class PydanticAIReasoner:
             model_name=self.model_name,
             usage=UsageRecord(
                 input_tokens=usage.input_tokens, output_tokens=usage.output_tokens, requests=usage.requests,
+                cache_read_tokens=usage.cache_read_tokens or 0, cache_write_tokens=usage.cache_write_tokens or 0,
                 retries=max(0, usage.requests - 1),
             ),
             raw_messages=raw,

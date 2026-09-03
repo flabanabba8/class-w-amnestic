@@ -527,14 +527,17 @@ class Store:
         self, run_id: str, step: int, *, attempt: int, model_name: str, context_json: str, context_chars: int,
         approx_tokens: int, input_tokens: int | None, output_tokens: int | None, requests: int | None, status: str,
         error: str | None, decision_json: str | None, raw_messages_json: str | None, duration_ms: int | None,
+        cache_read_tokens: int | None = None, cache_write_tokens: int | None = None,
     ) -> str:
         call_id = new_id("call")
         self.db.execute(
             """INSERT INTO model_calls(call_id, run_id, step, attempt, model_name, context_json, context_chars, approx_tokens,
                                        input_tokens, output_tokens, requests, status, error, decision_json, raw_messages_json,
-                                       duration_ms, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                       duration_ms, created_at, cache_read_tokens, cache_write_tokens)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (call_id, run_id, step, attempt, model_name, context_json, context_chars, approx_tokens, input_tokens,
-             output_tokens, requests, status, error, decision_json, raw_messages_json, duration_ms, _ts()),
+             output_tokens, requests, status, error, decision_json, raw_messages_json, duration_ms, _ts(),
+             cache_read_tokens, cache_write_tokens),
         )
         return call_id
 
@@ -669,7 +672,7 @@ class Store:
     # ---- metrics / errors --------------------------------------------------------------
 
     METRIC_COLUMNS = ("context_chars", "context_tokens_est", "input_tokens", "output_tokens", "state_bytes", "model_calls",
-                      "tool_calls", "retrievals", "patch_applied", "elapsed_ms")
+                      "tool_calls", "retrievals", "patch_applied", "elapsed_ms", "cache_read_tokens", "cache_write_tokens")
     COUNTER_COLUMNS = frozenset({"model_calls", "tool_calls", "retrievals", "patch_applied"})
 
     def save_step_metrics(self, run_id: str, step: int, **metrics: int | None) -> None:
@@ -688,6 +691,7 @@ class Store:
     def run_metrics(self, run_id: str) -> dict[str, Any]:
         row = self.db.query_one(
             """SELECT COUNT(*) AS steps, SUM(model_calls) AS model_calls, SUM(input_tokens) AS input_tokens,
+                      SUM(cache_read_tokens) AS cache_read_tokens, SUM(cache_write_tokens) AS cache_write_tokens,
                       SUM(output_tokens) AS output_tokens, SUM(tool_calls) AS tool_calls, SUM(retrievals) AS retrievals,
                       SUM(patch_applied) AS patches_applied, SUM(elapsed_ms) AS elapsed_ms, MAX(context_chars) AS max_context_chars,
                       AVG(context_chars) AS avg_context_chars, MAX(state_bytes) AS max_state_bytes

@@ -27,12 +27,12 @@ def _seed(store: Store, skill: SkillSpecification, state: ExecutionState) -> Non
 def test_migrations_are_idempotent_and_pragmas_set(tmp_path: Path):
     p = tmp_path / "m.db"
     db1 = Database(p)
-    assert current_schema_version(db1.conn) == 1
+    assert current_schema_version(db1.conn) == 2
     assert db1.conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
     assert db1.conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     db1.close()
     db2 = Database(p)  # reopening applies nothing new
-    assert current_schema_version(db2.conn) == 1
+    assert current_schema_version(db2.conn) == 2
     db2.close()
 
 
