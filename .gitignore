@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.skillstate/
+*.db
+*.db-wal
+*.db-shm
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+RESEARCH_REPORT.md

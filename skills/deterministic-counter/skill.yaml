@@ -1,0 +1,14 @@
+skill_id: deterministic-counter
+name: Deterministic Counter
+version: "1.0.0"
+description: >-
+  A deterministic test skill. The agent reads a target count from the task input,
+  increments a counter in the execution state with a runtime-only 'continue' action
+  until the target is reached, then completes. Used to validate the lifecycle without a model.
+required_tools: []
+completion_criteria:
+  - "environment.counter equals the target given in the task input"
+phases: [start, counting, done]
+initial_phase: start
+default_max_steps: 2000
+reasoner_script: skillstate.benchmarks.scripts:counter_script

@@ -1,0 +1,54 @@
+[project]
+name = "skillstate"
+version = "0.1.0"
+description = "SKILL.state long-horizon agent runtime: explicit execution state instead of chat transcripts (PydanticAI + pydantic-graph + SQLite)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.11",
+    "pydantic-ai-slim[anthropic,openai]>=2.37.0",
+    "pydantic-graph>=2.37.0",
+    "pyyaml>=6.0.3",
+]
+
+[project.scripts]
+skillstate = "skillstate.cli.main:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.5",
+    "types-pyyaml>=6.0.12.20260815",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = ["live: requires model credentials (SKILLSTATE_LIVE_TESTS=1)", "benchmark: slow scaling benchmarks"]
+filterwarnings = ["error::DeprecationWarning:skillstate.*"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "ASYNC", "S"]
+ignore = ["S101", "S603", "S607", "E501", "RUF012", "SIM108", "B008", "S608", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_unused_ignores = false
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]

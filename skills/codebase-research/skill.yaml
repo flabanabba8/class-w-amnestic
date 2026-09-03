@@ -1,0 +1,24 @@
+skill_id: codebase-research
+name: Codebase Research Report
+version: "1.0.0"
+description: >-
+  Investigate a code workspace to answer a research question, then write a concise
+  Markdown report into the workspace. Demonstrates a realistic multi-step tool-using workflow:
+  survey, targeted reading, hypothesis testing, and a written deliverable.
+required_tools:
+  - list_directory
+  - read_text_file
+  - search_text
+  - write_workspace_file
+  - archival_memory_search
+completion_criteria:
+  - "A report file exists in the workspace and is referenced as an artifact in the state"
+  - "Every claim in the report is backed by a verified fact with evidence"
+  - "The research question in the objective is answered in final_answer"
+constraints:
+  - "Never write outside the workspace"
+  - "Do not paste large file contents into the state; keep facts as short statements with evidence ids"
+phases: [survey, investigate, synthesize, report, done]
+initial_phase: survey
+default_max_steps: 60
+reasoner_script: skillstate.benchmarks.scripts:codebase_research_script
