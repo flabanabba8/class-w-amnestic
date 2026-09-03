@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
 from pydantic_graph import GraphBuilder
 
-from skillstate.agent.reasoner import Reasoner, UsageRecord
+from skillstate.agent.reasoner import Reasoner
 from skillstate.config import RuntimeConfig
-from skillstate.context.builder import ContextBuilder, ModelContext
+from skillstate.context.builder import ContextBuilder
 from skillstate.graph import nodes
-from skillstate.graph.state import RunOutcome, RuntimeDeps, RuntimeGraphState
 from skillstate.graph.nodes import (
     ApplyDecision,
     AwaitHuman,
@@ -26,6 +23,7 @@ from skillstate.graph.nodes import (
     Reason,
     RetrieveMemory,
 )
+from skillstate.graph.state import RunOutcome, RuntimeDeps, RuntimeGraphState
 from skillstate.memory.base import Retriever
 from skillstate.memory.retrieval import ArchiveRetriever
 from skillstate.models.action import ToolAction
@@ -35,13 +33,13 @@ from skillstate.models.decision import AgentDecision
 from skillstate.models.observation import Observation, ObservationKind
 from skillstate.models.skill import SkillSpecification
 from skillstate.models.state import TERMINAL_STATUSES, Budgets, ExecutionState, Objective, RunStatus
-from skillstate.observability.logging import FieldsAdapter, get_logger
+from skillstate.observability.logging import get_logger
 from skillstate.storage.store import Store
 from skillstate.tools.base import ToolRegistry, ToolResult
 
 
 def build_graph() -> Any:
-    g: GraphBuilder[RuntimeGraphState, RuntimeDeps, Any, RunOutcome] = GraphBuilder(
+    g: Any = GraphBuilder(
         name="skillstate_lifecycle", state_type=RuntimeGraphState, deps_type=RuntimeDeps, input_type=Enter, output_type=RunOutcome,
         auto_instrument=False,
     )
@@ -50,7 +48,7 @@ def build_graph() -> Any:
         g.node(ExecuteAction), g.node(CaptureObservation), g.node(AwaitHuman), g.node(HandleFailure), g.node(Finalize),
     )
     # Single start edge; ``Enter`` dispatches to the resume point chosen by ``Runtime``.
-    g.add_edge(g.start_node, Enter)
+    g.add(g.edge_from(g.start_node).to(Enter))
     return g.build()
 
 

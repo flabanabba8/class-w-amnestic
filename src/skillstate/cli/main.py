@@ -25,9 +25,7 @@ from skillstate.tools import default_registry
 
 
 def _print(obj: Any, as_json: bool) -> None:
-    if as_json:
-        print(json.dumps(obj, indent=2, default=str, ensure_ascii=False))
-    elif isinstance(obj, (dict, list)):
+    if as_json or isinstance(obj, (dict, list)):
         print(json.dumps(obj, indent=2, default=str, ensure_ascii=False))
     else:
         print(obj)
@@ -50,7 +48,7 @@ def _reasoner(cfg: RuntimeConfig, skill: SkillSpecification | None, model: str |
     return PydanticAIReasoner(name, output_mode=cfg.output_mode, retries=cfg.model_retries, model_settings=cfg.model_settings)
 
 
-def _runtime(cfg: RuntimeConfig, store: Store, reasoner: Reasoner):  # noqa: ANN202
+def _runtime(cfg: RuntimeConfig, store: Store, reasoner: Reasoner):
     from skillstate.graph.runtime import Runtime
 
     return Runtime(cfg, store, reasoner=reasoner, tools=default_registry())
@@ -72,7 +70,7 @@ def cmd_init(cfg: RuntimeConfig, args: argparse.Namespace) -> int:
 
 def cmd_skills_list(cfg: RuntimeConfig, args: argparse.Namespace) -> int:
     reg = SkillRegistry(cfg.skills_dirs)
-    rows = [{"skill_id": s.skill_id, "version": s.version, "name": s.name, "tools": s.required_tools,
+    rows: list[dict[str, Any]] = [{"skill_id": s.skill_id, "version": s.version, "name": s.name, "tools": s.required_tools,
              "mock": bool(s.reasoner_script), "hash": s.content_hash[:12], "path": str(reg.path_of(s))} for s in reg.list()]
     if args.json:
         _print(rows, True)
@@ -239,7 +237,7 @@ def cmd_semantic(cfg: RuntimeConfig, args: argparse.Namespace) -> int:
     store = _open(cfg)
     sem = SemanticMemoryStore(store)
     if args.semantic_cmd == "list":
-        _print([m.model_dump(mode="json") for m in sem.list(args.category)], True)
+        _print([m.model_dump(mode="json") for m in sem.list_all(args.category)], True)
     elif args.semantic_cmd == "promote":
         m = sem.promote(key=args.key, content=args.content, category=args.category or "general", source_run_id=args.run_id,
                         source_event_ids=args.event_id or [], promoted_by="cli")
@@ -318,7 +316,7 @@ def cmd_doctor(cfg: RuntimeConfig, args: argparse.Namespace) -> int:
         from skillstate.storage.migrations import current_schema_version
 
         print(f"database ok: {cfg.db_path.resolve()} schema v{current_schema_version(db.conn)} fts5={'yes' if db.fts_enabled else 'no (LIKE fallback)'}")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         ok = False
         print(f"database ERROR: {exc}")
     ws = cfg.resolved_workspace()
@@ -337,7 +335,7 @@ def cmd_doctor(cfg: RuntimeConfig, args: argparse.Namespace) -> int:
 
             m = build_model(cfg.model)
             print(f"model resolves: {m.model_name} via {m.system}")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"model NOT usable: {exc}")
     print("logfire: " + ("enabled" if maybe_configure_logfire(cfg.logfire) else "off"))
     print("OK" if ok else "PROBLEMS FOUND")
@@ -345,7 +343,7 @@ def cmd_doctor(cfg: RuntimeConfig, args: argparse.Namespace) -> int:
 
 
 def cmd_benchmark(cfg: RuntimeConfig, args: argparse.Namespace) -> int:
-    from skillstate.benchmarks.scaling import run_benchmark, render_report
+    from skillstate.benchmarks.scaling import render_report, run_benchmark
 
     report = run_benchmark(steps=args.steps, observation_chars=args.observation_chars, checkpoints=None)
     text = render_report(report)

@@ -87,7 +87,7 @@ class PydanticAIReasoner:
                 error=f"{type(exc).__name__}: {exc}", error_kind="validation", model_name=self.model_name,
                 duration_ms=_ms(started),
             )
-        except Exception as exc:  # noqa: BLE001 - provider/network errors
+        except Exception as exc:
             return ReasonerResult(
                 error=f"{type(exc).__name__}: {exc}", error_kind="model", model_name=self.model_name, duration_ms=_ms(started)
             )

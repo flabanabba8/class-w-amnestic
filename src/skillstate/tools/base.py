@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from skillstate.config import RuntimeConfig
 from skillstate.context.builder import ToolSpec
@@ -108,7 +108,7 @@ class ToolRegistry:
             return await tool.run(args, ctx)
         except ToolError as exc:
             return ToolResult(ok=False, error=str(exc))
-        except Exception as exc:  # noqa: BLE001 - convert everything into an observation
+        except Exception as exc:
             return ToolResult(ok=False, error=f"{type(exc).__name__}: {exc}")
 
 

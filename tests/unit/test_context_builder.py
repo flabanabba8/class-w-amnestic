@@ -9,10 +9,10 @@ from pathlib import Path
 from skillstate.context.builder import SECTION_EVIDENCE, SECTION_OBSERVATION, SECTION_SKILL, SECTION_STATE, ContextBuilder, ToolSpec
 from skillstate.models.archive import MemoryQuery, MemoryResult, RetrievedEvent
 from skillstate.models.observation import Observation, ObservationKind
+from skillstate.models.patch import StatePatch
 from skillstate.models.skill import SkillSpecification
 from skillstate.models.state import ExecutionState
 from skillstate.state.apply import apply_patch
-from skillstate.models.patch import StatePatch
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "skillstate" / "context"
 
@@ -41,7 +41,7 @@ def test_sections_are_delimited_and_ordered(simple_skill: SkillSpecification, ba
     text = ctx.full_text()
     for name in (SECTION_SKILL, SECTION_STATE, SECTION_OBSERVATION):
         assert f"<{name}" in text and f"</{name}>" in text
-    assert SECTION_EVIDENCE not in ctx.sections and "<retrieved_archival_evidence>" not in text
+    assert SECTION_EVIDENCE not in ctx.sections and "<retrieved_archival_evidence>" not in ctx.prompt
     assert text.index(f"<{SECTION_SKILL}") < text.index(f"<{SECTION_STATE}") < text.index(f"<{SECTION_OBSERVATION}")
     assert 'version="0"' in ctx.sections[SECTION_STATE] and ctx.state_version == 0
     assert "read_text_file" in ctx.sections[SECTION_SKILL] and "path" in ctx.sections[SECTION_SKILL]

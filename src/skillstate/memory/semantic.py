@@ -48,7 +48,7 @@ class SemanticMemoryStore:
     def forget(self, key: str) -> bool:
         return self.store.delete_semantic(key)
 
-    def list(self, category: str | None = None) -> list[SemanticMemory]:
+    def list_all(self, category: str | None = None) -> list[SemanticMemory]:
         return self.store.list_semantic(category=category)
 
     def search(self, text: str, limit: int = 10) -> list[SemanticMemory]:

@@ -22,14 +22,14 @@ class ArchiveRetriever:
         self.store = store
         self.excerpt_chars = excerpt_chars
 
-    def retrieve(self, run_id: str, query: MemoryQuery) -> MemoryResult:  # noqa: C901
+    def retrieve(self, run_id: str, query: MemoryQuery) -> MemoryResult:
         q = query
         events: list[ArchiveEvent] = []
         total = 0
         note = ""
         if q.query_type == "recent":
             events = self.store.list_events(run_id, limit=q.limit, newest_first=True, event_type=q.event_type)
-            total = len(events)
+            total = self.store.count_events(run_id, q.event_type)
         elif q.query_type == "event":
             if not q.event_id:
                 note = "event query requires event_id"
@@ -44,7 +44,7 @@ class ArchiveRetriever:
                 note = "events_by_type requires event_type"
             else:
                 events = self.store.list_events(run_id, limit=q.limit, newest_first=True, event_type=q.event_type)
-                total = len(events)
+                total = self.store.count_events(run_id, q.event_type)
         elif q.query_type == "search":
             if not q.text:
                 note = "search requires text"

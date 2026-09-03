@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import sys
@@ -74,8 +75,6 @@ def maybe_configure_logfire(enabled: bool) -> bool:
         logging.getLogger("skillstate").warning("SKILLSTATE_LOGFIRE set but logfire is not installed (uv add logfire)")
         return False
     logfire.configure()
-    try:
+    with contextlib.suppress(Exception):  # pragma: no cover - optional instrumentation
         logfire.instrument_pydantic_ai()
-    except Exception:  # pragma: no cover - optional
-        pass
     return True

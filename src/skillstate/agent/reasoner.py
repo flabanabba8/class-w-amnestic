@@ -66,7 +66,7 @@ class ScriptedReasoner:
         except ValidationError as exc:
             return ReasonerResult(error=f"invalid decision: {exc.errors(include_url=False)}", error_kind="validation",
                                   model_name=self.model_name, usage=usage, duration_ms=_ms(started))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return ReasonerResult(error=f"{type(exc).__name__}: {exc}", error_kind="model", model_name=self.model_name,
                                   usage=usage, duration_ms=_ms(started))
         usage.output_tokens = len(decision.model_dump_json()) // 4

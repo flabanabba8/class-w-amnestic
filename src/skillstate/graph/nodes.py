@@ -18,22 +18,20 @@ from __future__ import annotations
 import json
 import time
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic_graph import BaseNode, End, GraphRunContext
 
+from skillstate.graph.state import RunOutcome, RuntimeDeps, RuntimeGraphState
 from skillstate.models.action import ContinueAction, RequestHumanInput, ToolAction
 from skillstate.models.archive import EventType, MemoryResult
 from skillstate.models.common import utcnow
-from skillstate.models.decision import AgentDecision
 from skillstate.models.observation import Observation, ObservationKind
 from skillstate.models.state import RunStatus
 from skillstate.state.apply import PatchRejected, apply_patch
 from skillstate.storage.store import StaleWriteError
 from skillstate.tools.base import ToolContext
-
-from skillstate.graph.state import RunOutcome, RuntimeDeps, RuntimeGraphState
 
 Ctx = GraphRunContext[RuntimeGraphState, RuntimeDeps]
 
@@ -165,7 +163,13 @@ class ApplyDecision(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
                 )
                 d.store.update_step(s.run_id, s.step, phase="state_committed", patch_id=patch_id, state_version_after=new_state.state_version)
         except StaleWriteError as exc:
-            d.store.save_error(s.run_id, s.step, "stale_write", str(exc))
+            # The whole commit transaction rolled back; record the rejection separately, then pause (no lost update).
+            with d.store.transaction():
+                d.store.record_patch(s.run_id, s.step, patch, status="rejected", error_code="stale_write", error=str(exc))
+                d.store.append_event(s.run_id, s.step, EventType.PATCH_REJECTED, f"patch rejected (stale_write): {exc}",
+                                     {"code": "stale_write", "reason": str(exc), "expected": exc.expected, "actual": exc.actual})
+                d.store.save_error(s.run_id, s.step, "stale_write", str(exc))
+            s.execution_state = d.store.get_state(s.run_id)
             return Finalize(reason="stale_write", status=RunStatus.PAUSED, summary=str(exc))
         except PatchRejected as exc:
             with d.store.transaction():
@@ -230,8 +234,8 @@ class RetrieveMemory(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
             d.store.save_retrieval(s.run_id, s.step, query, result, ev.event_id)
             d.store.update_step(s.run_id, s.step, phase="done")
             s.execution_state.counters.retrievals += 1
-        # The same observation is re-presented together with the retrieved evidence; nothing else carries over.
-        return await _next_step(ctx, observation=s.observation, retrieved=[result])
+            # The same observation is re-presented together with the retrieved evidence; nothing else carries over.
+            return await _next_step(ctx, observation=s.observation, retrieved=[result])
 
 
 @dataclass
@@ -271,21 +275,27 @@ class CaptureObservation(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
         action = s.decision.action
         full = result.output if result.ok else f"TOOL FAILED: {result.error}\n{result.output}".strip()
         etype = EventType.TOOL_FINISHED if result.ok else EventType.TOOL_FAILED
+        existing = d.store.get_tool_execution(execution_id)
+        already_closed = existing is not None and existing.status != "started"  # e.g. marked 'interrupted' by resume
         with d.store.transaction():
-            ev = d.store.append_event(
-                s.run_id, s.step, etype,
-                f"tool {'finished' if result.ok else 'failed'}: {action.tool_name} ({len(full)} chars)",
-                {"tool": action.tool_name, "arguments": action.arguments, "ok": result.ok, "output": full[:20_000],
-                 "error": result.error, "data": result.data, "duration_ms": duration_ms, "execution_id": execution_id},
-                ref_table="tool_executions", ref_id=execution_id,
-            )
-            d.store.finish_tool_execution(
-                execution_id, status="succeeded" if result.ok else "failed", output=result.output, error=result.error,
-                data=result.data, event_id=ev.event_id, duration_ms=duration_ms,
-            )
-            d.store.update_action(s.action_id or "", status="executed" if result.ok else "failed")
+            if already_closed and existing is not None and existing.event_id:
+                ev_id = existing.event_id
+            else:
+                ev = d.store.append_event(
+                    s.run_id, s.step, etype,
+                    f"tool {'finished' if result.ok else 'failed'}: {action.tool_name} ({len(full)} chars)",
+                    {"tool": action.tool_name, "arguments": action.arguments, "ok": result.ok, "output": full[:20_000],
+                     "error": result.error, "data": result.data, "duration_ms": duration_ms, "execution_id": execution_id},
+                    ref_table="tool_executions", ref_id=execution_id,
+                )
+                ev_id = ev.event_id
+                d.store.finish_tool_execution(
+                    execution_id, status="succeeded" if result.ok else "failed", output=result.output, error=result.error,
+                    data=result.data, event_id=ev_id, duration_ms=duration_ms,
+                )
+                d.store.update_action(s.action_id or "", status="executed" if result.ok else "failed")
             if result.artifact is not None:
-                art = result.artifact.model_copy(update={"originating_event_id": ev.event_id})
+                art = result.artifact.model_copy(update={"originating_event_id": ev_id})
                 d.store.save_artifact(s.run_id, art)
             s.execution_state.counters.tool_calls += 1
             if not result.ok:
@@ -294,7 +304,7 @@ class CaptureObservation(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
         data["ok"] = result.ok
         if result.artifact is not None:
             data["artifact"] = {"locator": result.artifact.locator, "kind": result.artifact.kind}
-        obs = _make_observation(s, ObservationKind.TOOL_RESULT, action.tool_name, full, data=data, ref_event_id=ev.event_id)
+        obs = _make_observation(s, ObservationKind.TOOL_RESULT, action.tool_name, full, data=data, ref_event_id=ev_id)
         return await _advance(ctx, obs, EventType.OBSERVATION, action_id=s.action_id, full_content=full)
 
 
@@ -419,7 +429,7 @@ def _make_observation(
 async def _advance(ctx: Ctx, obs: Observation, etype: EventType, *, action_id: str | None, full_content: str | None = None) -> BuildContext | Finalize:
     """Archive the new observation, close the current step and open the next one (one transaction)."""
     s, d = ctx.state, ctx.deps
-    with d.store.transaction():
+    with d.store.transaction():  # closing this step and opening the next is ONE transaction (crash-safe)
         ev = d.store.append_event(
             s.run_id, obs.step, etype, f"observation ({obs.kind.value} from {obs.source}): {obs.content[:200]}",
             {"observation_id": obs.id, "kind": obs.kind.value, "source": obs.source, "content": (full_content or obs.content)[:20_000],
@@ -430,7 +440,7 @@ async def _advance(ctx: Ctx, obs: Observation, etype: EventType, *, action_id: s
             obs.event_id = ev.event_id
         d.store.save_observation(obs, full_content or obs.content)
         d.store.update_step(s.run_id, s.step, phase="done")
-    return await _next_step(ctx, observation=obs, retrieved=None)
+        return await _next_step(ctx, observation=obs, retrieved=None)
 
 
 async def _next_step(ctx: Ctx, *, observation: Observation, retrieved: list[MemoryResult] | None) -> BuildContext | Finalize:

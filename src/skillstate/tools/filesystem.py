@@ -109,7 +109,7 @@ class SearchTextTool(Tool):
                 continue
             if len(results) >= args.max_results:
                 break
-        output, truncated = truncate_output("\n".join(results) or "(no matches)", 50_000)
+        output, _ = truncate_output("\n".join(results) or "(no matches)", 50_000)
         return ToolResult(ok=True, output=output, data={"matches": len(results), "files_scanned": scanned, "capped": len(results) >= args.max_results})
 
 

@@ -117,7 +117,7 @@ class Store:
         self.db = db
 
     @property
-    def transaction(self):  # noqa: ANN201 - contextmanager passthrough
+    def transaction(self):
         return self.db.transaction
 
     # ---- skills ------------------------------------------------------------------------
@@ -129,12 +129,20 @@ class Store:
                ON CONFLICT(skill_id, version) DO UPDATE SET
                  name=excluded.name, description=excluded.description, content_hash=excluded.content_hash,
                  spec_json=excluded.spec_json, loaded_at=excluded.loaded_at""",
-            (spec.skill_id, spec.version, spec.name, spec.description, spec.content_hash, spec.model_dump_json(), _ts()),
+            (spec.skill_id, spec.version, spec.name, spec.description, spec.content_hash,
+             spec.model_dump_json(exclude={"content_hash"}), _ts()),
         )
 
     def get_skill(self, skill_id: str, version: str) -> SkillSpecification | None:
-        row = self.db.query_one("SELECT spec_json FROM skills WHERE skill_id=? AND version=?", (skill_id, version))
-        return SkillSpecification.model_validate_json(row["spec_json"]) if row else None
+        row = self.db.query_one("SELECT spec_json, content_hash FROM skills WHERE skill_id=? AND version=?", (skill_id, version))
+        if row is None:
+            return None
+        data = json.loads(row["spec_json"])
+        data.pop("content_hash", None)
+        spec = SkillSpecification.model_validate(data)
+        if spec.content_hash != row["content_hash"]:
+            raise ValueError(f"stored skill {skill_id}@{version} does not match its recorded content hash (tampered?)")
+        return spec
 
     # ---- runs --------------------------------------------------------------------------
 
@@ -171,15 +179,20 @@ class Store:
         finished_at: datetime | None = None,
         outcome: dict[str, Any] | None = None,
     ) -> None:
-        sets, params = ["updated_at=?"], [_ts()]
+        sets: list[str] = ["updated_at=?"]
+        params: list[Any] = [_ts()]
         if status is not None:
-            sets.append("status=?"); params.append(status)
+            sets.append("status=?")
+            params.append(status)
         if last_step is not None:
-            sets.append("last_step=?"); params.append(last_step)
+            sets.append("last_step=?")
+            params.append(last_step)
         if finished_at is not None:
-            sets.append("finished_at=?"); params.append(_ts(finished_at))
+            sets.append("finished_at=?")
+            params.append(_ts(finished_at))
         if outcome is not None:
-            sets.append("outcome_json=?"); params.append(_json(outcome))
+            sets.append("outcome_json=?")
+            params.append(_json(outcome))
         params.append(run_id)
         self.db.execute(f"UPDATE runs SET {', '.join(sets)} WHERE run_id=?", tuple(params))
 
@@ -322,19 +335,25 @@ class Store:
         )
         return {r["event_id"] for r in rows}
 
-    def count_events(self, run_id: str) -> int:
-        row = self.db.query_one("SELECT COUNT(*) AS n FROM archive_events WHERE run_id=?", (run_id,))
+    def count_events(self, run_id: str, event_type: str | None = None) -> int:
+        if event_type:
+            row = self.db.query_one("SELECT COUNT(*) AS n FROM archive_events WHERE run_id=? AND event_type=?", (run_id, event_type))
+        else:
+            row = self.db.query_one("SELECT COUNT(*) AS n FROM archive_events WHERE run_id=?", (run_id,))
         return int(row["n"]) if row else 0
 
     def list_events(
         self, run_id: str, *, limit: int = 50, offset: int = 0, event_type: str | None = None, step: int | None = None,
         newest_first: bool = False,
     ) -> list[ArchiveEvent]:
-        sql, params = "SELECT * FROM archive_events WHERE run_id=?", [run_id]
+        sql = "SELECT * FROM archive_events WHERE run_id=?"
+        params: list[Any] = [run_id]
         if event_type:
-            sql += " AND event_type=?"; params.append(event_type)
+            sql += " AND event_type=?"
+            params.append(event_type)
         if step is not None:
-            sql += " AND step=?"; params.append(step)
+            sql += " AND step=?"
+            params.append(step)
         sql += f" ORDER BY seq {'DESC' if newest_first else 'ASC'} LIMIT ? OFFSET ?"
         params += [limit, offset]
         return [self._event_from_row(r) for r in self.db.query(sql, tuple(params))]
@@ -608,15 +627,20 @@ class Store:
         self, run_id: str, step: int, *, phase: str, decision: dict[str, Any] | None = None, patch_id: str | None = None,
         action_id: str | None = None, state_version_after: int | None = None,
     ) -> None:
-        sets, params = ["phase=?", "updated_at=?"], [phase, _ts()]
+        sets: list[str] = ["phase=?", "updated_at=?"]
+        params: list[Any] = [phase, _ts()]
         if decision is not None:
-            sets.append("decision_json=?"); params.append(_json(decision))
+            sets.append("decision_json=?")
+            params.append(_json(decision))
         if patch_id is not None:
-            sets.append("patch_id=?"); params.append(patch_id)
+            sets.append("patch_id=?")
+            params.append(patch_id)
         if action_id is not None:
-            sets.append("action_id=?"); params.append(action_id)
+            sets.append("action_id=?")
+            params.append(action_id)
         if state_version_after is not None:
-            sets.append("state_version_after=?"); params.append(state_version_after)
+            sets.append("state_version_after=?")
+            params.append(state_version_after)
         params += [run_id, step]
         self.db.execute(f"UPDATE steps SET {', '.join(sets)} WHERE run_id=? AND step=?", tuple(params))
 
@@ -644,15 +668,22 @@ class Store:
 
     # ---- metrics / errors --------------------------------------------------------------
 
+    METRIC_COLUMNS = ("context_chars", "context_tokens_est", "input_tokens", "output_tokens", "state_bytes", "model_calls",
+                      "tool_calls", "retrievals", "patch_applied", "elapsed_ms")
+    COUNTER_COLUMNS = frozenset({"model_calls", "tool_calls", "retrievals", "patch_applied"})
+
     def save_step_metrics(self, run_id: str, step: int, **metrics: int | None) -> None:
-        cols = ["context_chars", "context_tokens_est", "input_tokens", "output_tokens", "state_bytes", "model_calls",
-                "tool_calls", "retrievals", "patch_applied", "elapsed_ms"]
-        values = [metrics.get(c) for c in cols]
-        self.db.execute(
-            f"""INSERT INTO step_metrics(run_id, step, {', '.join(cols)}, created_at) VALUES (?,?,{','.join('?' * len(cols))},?)
-                ON CONFLICT(run_id, step) DO UPDATE SET {', '.join(f'{c}=COALESCE(excluded.{c}, step_metrics.{c})' for c in cols)}""",
-            (run_id, step, *[v if v is not None else (0 if c in {"model_calls", "tool_calls", "retrievals", "patch_applied"} else None) for c, v in zip(cols, values, strict=True)], _ts()),
-        )
+        """Merge metrics for a step: provided values win, missing ones keep their previous value."""
+        with self.db.transaction():
+            row = self.db.query_one("SELECT * FROM step_metrics WHERE run_id=? AND step=?", (run_id, step))
+            merged = {c: (row[c] if row else (0 if c in self.COUNTER_COLUMNS else None)) for c in self.METRIC_COLUMNS}
+            merged.update({k: v for k, v in metrics.items() if v is not None and k in self.METRIC_COLUMNS})
+            cols = ", ".join(self.METRIC_COLUMNS)
+            marks = ",".join("?" * len(self.METRIC_COLUMNS))
+            self.db.execute(
+                f"INSERT OR REPLACE INTO step_metrics(run_id, step, {cols}, created_at) VALUES (?,?,{marks},?)",
+                (run_id, step, *[merged[c] for c in self.METRIC_COLUMNS], row["created_at"] if row else _ts()),
+            )
 
     def run_metrics(self, run_id: str) -> dict[str, Any]:
         row = self.db.query_one(

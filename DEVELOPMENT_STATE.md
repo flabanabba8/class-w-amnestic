@@ -4,28 +4,29 @@ Current development state only. Git history is the diary.
 
 ## Objective
 
-Deliver a working v1 SKILL.state runtime (`skillstate`) in Python with
-PydanticAI + pydantic-graph + SQLite, validated by tests and a token-scaling
-benchmark.
+v1 SKILL.state runtime (`skillstate`): validated, bounded-context long-horizon agent
+loop on PydanticAI + pydantic-graph + SQLite. **Status: v0.1.0 complete; all acceptance
+criteria in the original brief met (see docs/AUDIT.md).**
 
 ## Verified architectural decisions
 
-- Upstream versions: pydantic-ai-slim 2.37.0, pydantic-graph 2.37.0, pydantic 2.13.5, Python 3.12 (uv-managed). SQLite 3.53 with FTS5.
-- pydantic-graph 2.x has NO built-in state persistence; the lifecycle graph is built with `GraphBuilder` + `BaseNode` classes and all durability is our own SQLite layer.
-- Each reasoning step = fresh `Agent.run(prompt, instructions=...)` with no `message_history`. Verified with `FunctionModel` that a fresh run sends exactly one `ModelRequest`.
-- `Reasoner` protocol decouples the graph from PydanticAI; `ScriptedReasoner` serves tests/benchmarks.
-- Structured output: PydanticAI `output_type=AgentDecision` (tool mode default, configurable native/prompted); `expected_state_version` mismatch raises `ModelRetry` inside the step.
-- State mutation only via discriminated-union `StatePatch` ops; commit via `UPDATE ... WHERE state_version = expected` (optimistic concurrency).
-- Step lifecycle phases persisted in `steps` table drive crash resume.
+- Upstream: pydantic-ai-slim 2.37.0, pydantic-graph 2.37.0, pydantic 2.13.5, Python 3.12, SQLite 3.53 (FTS5).
+- pydantic-graph 2.x has no persistence; lifecycle = `GraphBuilder` + `BaseNode`s with a single `Enter` dispatcher; durability = our `steps` table.
+- One fresh `Agent.run(prompt, instructions=skill+contract)` per step; never `message_history`; per-step messages archived to `model_calls.raw_messages_json`.
+- `ContextBuilder(skill, state, observation, retrieved)` is the only prompt assembler; it has no storage import (test-enforced).
+- `StatePatch` = strict discriminated-union ops; `apply_patch` pure + atomic; commit with `UPDATE … WHERE state_version=?` (stale → recorded rejection + pause).
+- Facts need archive-verified evidence ids; hypotheses promote only via `promote_hypothesis`.
+- Limits: reject with guidance for curated lists / bytes; automatic archived compaction for bookkeeping lists.
+- Step close + next step open is one transaction; tool execution is at-least-once (documented).
+- Runtime-owned counters committed as their own state versions.
 
 ## Completed components
 
-- Research of paper + upstream APIs (spikes in scratchpad, findings recorded here and in docs/IMPLEMENTATION_NOTES.md)
-- Project skeleton, AGENTS.md, invariants doc
-
-## In progress
-
-- Phase 2 vertical slice: models → patch apply → storage → context builder → scripted reasoner → graph loop.
+models · state/apply · storage (schema v1, Store) · memory (ArchiveRetriever, SemanticMemoryStore) · context/builder ·
+agent (PydanticAIReasoner, ScriptedReasoner) · graph (10 nodes, Runtime.start/resume) · tools (6, workspace-confined, shell policy) ·
+skills loader + 2 example skills with mock scripts · CLI (15 commands) · observability (structured logging, optional logfire) ·
+benchmark + ReAct simulator · 83 tests (unit/integration/benchmark, no credentials) · docs (README, ARCHITECTURE, STATE_MODEL,
+PERSISTENCE, MEMORY, CONTEXT_INVARIANTS, CRASH_RECOVERY, SECURITY, IMPLEMENTATION_NOTES, BENCHMARK_REPORT, AUDIT) · AGENTS.md.
 
 ## Current blockers
 
@@ -33,15 +34,16 @@ benchmark.
 
 ## Open design questions
 
-- Whether `ContinueAction` (reason again without external action) should exist; currently allowed but bounded by `max_consecutive_continues`.
+- Multi-process lease for resume (currently: optimistic concurrency only).
+- Whether `ContinueAction` should be rate-limited by wall clock as well as count.
+- Semantic memory is queried only on demand; should skills be able to declare "always inject these keys" (bounded)? Deferred — risk of prompt creep.
 
 ## Failing tests
 
-- None yet (no tests written).
+- None (`uv run pytest`: 83 passed, 1 skipped — the optional live-model test).
 
 ## Next actions
 
-1. Domain models (`models/`).
-2. Patch application + limits (`state/`).
-3. SQLite schema + repositories (`storage/`).
-4. ContextBuilder + scripted reasoner + graph loop; first end-to-end test.
+1. Try a live model end-to-end (`SKILLSTATE_LIVE_TESTS=1`) and tune the output contract wording from real decisions.
+2. Add `runs.lease_*` migration for cooperative multi-process resume.
+3. Stage 3+: semantic retriever behind `Retriever`; richer tools; MCP; subagents (see docs/ARCHITECTURE.md roadmap).

@@ -225,7 +225,14 @@ def _require(cond: bool, message: str, code: str = "not_found") -> None:
         raise PatchRejected(message, code=code)
 
 
-def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
+def _find[T](items: list[T], item_id: str, label: str) -> T:
+    found = next((i for i in items if getattr(i, "id", None) == item_id), None)
+    if found is None:
+        raise PatchRejected(f"{label} {item_id!r} not found", code="not_found")
+    return found
+
+
+def _apply_op(
     s: ExecutionState,
     op: Any,
     result: PatchApplication,
@@ -264,27 +271,21 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         s.verified_facts.append(fact)
         result.changes.append(f"fact added {fact.id}")
     elif isinstance(op, SupersedeFact):
-        old = s.find_fact(op.fact_id)
-        _require(old is not None, f"fact {op.fact_id!r} not found")
-        assert old is not None
-        result.archived.append(ArchivedItem("fact", old.model_dump(mode="json"), f"superseded by new statement"))
+        old = _find(s.verified_facts, op.fact_id, "fact")
+        result.archived.append(ArchivedItem("fact", old.model_dump(mode="json"), "superseded by new statement"))
         old.statement = op.statement
         old.confidence = op.confidence
         old.evidence_event_ids = list(op.evidence_event_ids)
         old.updated_at = now
         result.changes.append(f"fact superseded {old.id}")
     elif isinstance(op, RemoveFact):
-        old = s.find_fact(op.fact_id)
-        _require(old is not None, f"fact {op.fact_id!r} not found")
-        assert old is not None
+        old = _find(s.verified_facts, op.fact_id, "fact")
         s.verified_facts.remove(old)
         result.archived.append(ArchivedItem("fact", old.model_dump(mode="json"), op.reason))
         result.changes.append(f"fact removed {old.id}")
     elif isinstance(op, ArchiveFacts):
         for fid in op.fact_ids:
-            old = s.find_fact(fid)
-            _require(old is not None, f"fact {fid!r} not found")
-            assert old is not None
+            old = _find(s.verified_facts, fid, "fact")
             s.verified_facts.remove(old)
             result.archived.append(ArchivedItem("fact", old.model_dump(mode="json"), op.reason))
         result.changes.append(f"{len(op.fact_ids)} facts archived")
@@ -301,9 +302,7 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         s.active_hypotheses.append(hyp)
         result.changes.append(f"hypothesis added {hyp.id}")
     elif isinstance(op, UpdateHypothesis):
-        hyp = s.find_hypothesis(op.hypothesis_id)
-        _require(hyp is not None, f"hypothesis {op.hypothesis_id!r} not found")
-        assert hyp is not None
+        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis")
         if op.statement is not None:
             hyp.statement = op.statement
         if op.confidence is not None:
@@ -313,9 +312,7 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         hyp.updated_at = now
         result.changes.append(f"hypothesis updated {hyp.id}")
     elif isinstance(op, RejectHypothesis):
-        hyp = s.find_hypothesis(op.hypothesis_id)
-        _require(hyp is not None, f"hypothesis {op.hypothesis_id!r} not found")
-        assert hyp is not None
+        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis")
         s.active_hypotheses.remove(hyp)
         s.rejected_hypotheses.append(
             RejectedHypothesis(
@@ -328,9 +325,7 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         )
         result.changes.append(f"hypothesis rejected {hyp.id}")
     elif isinstance(op, PromoteHypothesis):
-        hyp = s.find_hypothesis(op.hypothesis_id)
-        _require(hyp is not None, f"hypothesis {op.hypothesis_id!r} not found")
-        assert hyp is not None
+        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis")
         s.active_hypotheses.remove(hyp)
         s.verified_facts.append(
             VerifiedFact(
@@ -356,9 +351,7 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         s.artifacts.append(art)
         result.changes.append(f"artifact added {art.id}")
     elif isinstance(op, RemoveArtifact):
-        art = next((a for a in s.artifacts if a.id == op.artifact_id), None)
-        _require(art is not None, f"artifact {op.artifact_id!r} not found")
-        assert art is not None
+        art = _find(s.artifacts, op.artifact_id, "artifact")
         s.artifacts.remove(art)
         result.archived.append(ArchivedItem("artifact", art.model_dump(mode="json"), op.reason))
         result.changes.append(f"artifact removed {art.id}")
@@ -370,9 +363,7 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         s.current_plan = [PlanStep(id=f"plan_{i + 1}", description=d) for i, d in enumerate(op.steps)]
         result.changes.append(f"plan set ({len(op.steps)} steps)")
     elif isinstance(op, UpdatePlanStep):
-        step = next((p for p in s.current_plan if p.id == op.step_id), None)
-        _require(step is not None, f"plan step {op.step_id!r} not found")
-        assert step is not None
+        step = _find(s.current_plan, op.step_id, "plan step")
         step.status = op.status
         if op.description is not None:
             step.description = op.description
@@ -383,9 +374,7 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         s.pending_actions.append(pa)
         result.changes.append(f"pending action added {pa.id}")
     elif isinstance(op, CompletePendingAction):
-        pa = next((p for p in s.pending_actions if p.id == op.action_id), None)
-        _require(pa is not None, f"pending action {op.action_id!r} not found")
-        assert pa is not None
+        pa = _find(s.pending_actions, op.action_id, "pending action")
         s.pending_actions.remove(pa)
         result.archived.append(ArchivedItem("pending_action", pa.model_dump(mode="json"), "completed"))
         result.changes.append(f"pending action completed {pa.id}")
@@ -395,9 +384,7 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         s.blockers.append(b)
         result.changes.append(f"blocker added {b.id}")
     elif isinstance(op, RemoveBlocker):
-        b = next((x for x in s.blockers if x.id == op.blocker_id), None)
-        _require(b is not None, f"blocker {op.blocker_id!r} not found")
-        assert b is not None
+        b = _find(s.blockers, op.blocker_id, "blocker")
         s.blockers.remove(b)
         result.archived.append(ArchivedItem("blocker", b.model_dump(mode="json"), op.resolution))
         result.changes.append(f"blocker removed {b.id}")
@@ -407,9 +394,7 @@ def _apply_op(  # noqa: C901 - one branch per op is the clearest layout
         s.unresolved_questions.append(q)
         result.changes.append(f"question added {q.id}")
     elif isinstance(op, ResolveQuestion):
-        q = next((x for x in s.unresolved_questions if x.id == op.question_id), None)
-        _require(q is not None, f"question {op.question_id!r} not found")
-        assert q is not None
+        q = _find(s.unresolved_questions, op.question_id, "question")
         s.unresolved_questions.remove(q)
         result.archived.append(ArchivedItem("question", {**q.model_dump(mode="json"), "answer": op.answer}, "resolved"))
         result.changes.append(f"question resolved {q.id}")

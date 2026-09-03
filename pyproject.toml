@@ -44,7 +44,8 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "ASYNC", "S"]
 ignore = ["S101", "S603", "S607", "E501", "RUF012", "SIM108", "B008", "S608", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S", "B", "SIM"]
+"tests/*" = ["S", "B", "SIM", "RUF059"]
+"src/skillstate/cli/main.py" = ["E702"]
 
 [tool.mypy]
 python_version = "3.12"

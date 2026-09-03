@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 
 import pytest
+from pydantic import ValidationError
 
 from skillstate.config import StateLimits
 from skillstate.models.patch import StatePatch
@@ -50,8 +51,8 @@ def test_hypothesis_lifecycle(base_state: ExecutionState):
     # cannot add a fact with the same statement: must promote with evidence
     with pytest.raises(PatchRejected, match="hypothesis_promotion_required"):
         apply_patch(s, patch(1, {"op": "add_fact", "statement": "Port is 8000", "evidence_event_ids": ["e1"]}))
-    with pytest.raises(PatchRejected):  # promote without evidence is not even representable
-        apply_patch(s, patch(1, {"op": "promote_hypothesis", "hypothesis_id": "h1", "evidence_event_ids": []}))
+    with pytest.raises(ValidationError):  # promote without evidence is not even representable
+        patch(1, {"op": "promote_hypothesis", "hypothesis_id": "h1", "evidence_event_ids": []})
     r2 = apply_patch(s, patch(1, {"op": "promote_hypothesis", "hypothesis_id": "h1", "evidence_event_ids": ["e1"]}))
     assert [f.id for f in r2.state.verified_facts] == ["h1"] and not r2.state.active_hypotheses
     r3 = apply_patch(base_state, patch(0, {"op": "add_hypothesis", "id": "h2", "statement": "x"},
