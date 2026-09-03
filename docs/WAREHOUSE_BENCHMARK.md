@@ -17,6 +17,7 @@ like-for-like measure; the runtime's own `input_tokens` column only counts uncac
 |---|---|---:|---:|---:|---|---:|
 | Claude Sonnet 5 | skillstate | **0.98** | 706,598 | 88% | 11.5K → 11.6K (flat) | 5,438 chars |
 | Claude Sonnet 5 | react | **0.98** | 431,579 | 97% | 2.2K → 11.9K (linear) | 132,441 chars |
+| Claude Sonnet 5 | skillstate, **slim schema + feedback fix** | **1.00** | **365,200** | 76% | 5.9K → 6.0K (flat) | 5,501 chars |
 | Claude Haiku 4.5 | skillstate | 0.80 | 645,996 | 80% | ~9.5K flat | 6,940 chars |
 | Claude Haiku 4.5 | react | **1.00** | 781,952 | 94% | ~2.2K → 24K (linear) | 165,255 chars |
 | scripted optimal policy (no model) | skillstate, 300 orders | 1.00 | — | — | context 5,486 chars flat | 5,486 chars |
@@ -36,9 +37,14 @@ like-for-like measure; the runtime's own `input_tokens` column only counts uncac
    not grow. Extrapolating the measured slopes: at 300 orders ReAct ≈ 7.8M prompt tokens vs 3.5M; at 1,000 orders
    ≈ 82M vs 11.5M — and past the context window ReAct cannot run at all. The scripted 300-order run and the Kimi
    300-order run (below) are the empirical part of that claim.
-4. **The fixed per-call overhead is the thing to fix**, not the architecture: the output schema (4.4K tokens) is
-   pure waste for a skill that uses three patch ops, and is being slimmed (per-skill op subsets, no docstring
-   descriptions in the schema).
+4. **The fixed per-call overhead was the thing to fix, and fixing it flips the result at 60 orders.** Pruning the
+   output schema to the five patch ops the skill declares (`allowed_ops`; 18K → 5.8K chars) halved the per-call
+   cost (11.5K → 5.9K prompt tokens). Rerun: Sonnet **1.00 with 365K prompt tokens** — fewer tokens than the ReAct
+   run (432K) *and* a perfect score, with the context still flat at 5.5K chars. The remaining fixed cost on this
+   route is the Claude Code system prompt (~4.4K of the 5.9K), which is not ours.
+
+Caveat on cache columns: through 9Router's OpenAI-compatible endpoint the cache hit counts arrive in a non-standard
+field, so the runtime's `cache_read_tokens` reads 0 for these runs; the percentages above come from 9Router's own log.
 
 ## Kimi K3 (NVIDIA route, no prompt caching, no route prefix) — 300 orders
 
