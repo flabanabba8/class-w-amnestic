@@ -71,7 +71,8 @@ Respond with a single structured AgentDecision:
   supersede_fact/remove_fact when something you believed is no longer true; replace last_observation_summary,
   never append). expected_state_version must equal the version shown in <execution_state>.
 - exactly one of: action (tool | human_input | continue), memory_query (recover archived information), or
-  completion (when the completion criteria are met or the task is impossible).
+  completion (when the completion criteria are met or the task is impossible). Finishing is ONLY done through
+  `completion`; never set status to completed/failed in the patch (the runtime rejects it).
 - rationale_summary: one or two short externally-safe sentences. Do not include step-by-step reasoning.
 Keep the state small: reference large content via artifacts and event ids instead of copying it in.
 """

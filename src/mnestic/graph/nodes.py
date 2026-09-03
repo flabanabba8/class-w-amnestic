@@ -182,6 +182,7 @@ class ApplyDecision(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
 
         s.execution_state = new_state
         s.patches_applied_this_step += 1
+        s.consecutive_failures = 0  # a successfully applied decision breaks the failure streak
         d.log.info("state committed", step=s.step, version=new_state.state_version, changes=len(applied.changes))
 
         if decision.completion is not None:

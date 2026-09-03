@@ -121,7 +121,9 @@ def check_status_transition(current: RunStatus, new: RunStatus, *, by_model: boo
     if by_model and new not in MODEL_SETTABLE_STATUSES:
         raise PatchRejected(
             f"status {new.value!r} cannot be set by a patch; only {sorted(s.value for s in MODEL_SETTABLE_STATUSES)} "
-            "are model-settable (use `completion` to finish the run)",
+            "are model-settable. To finish the run, remove this set_status op and return the decision with "
+            '`completion: {"outcome": "success", "summary": "...", "final_answer": "...", "artifact_ids": [...]}` '
+            "and no action.",
             code="forbidden_status",
         )
     if new == current:

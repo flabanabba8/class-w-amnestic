@@ -8,7 +8,7 @@ from mnestic.config import StateLimits
 from mnestic.memory.semantic import SemanticMemoryStore
 from mnestic.models.archive import EventType, MemoryQuery
 from mnestic.models.state import RunStatus
-from tests.integration.helpers import complete, decision, obs_info
+from tests.integration.helpers import complete, decision, obs_info, tool
 
 
 async def test_human_input_round_trip(make_runtime, store, simple_skill):
@@ -155,3 +155,24 @@ async def test_varied_tool_actions_do_not_trigger_guard(make_runtime, store, sim
 
     out = await make_runtime(script, cfg=cfg).start(simple_skill, "alternate")
     assert out.status == RunStatus.COMPLETED and store.get_state(out.run_id).counters.errors == 0
+
+
+async def test_non_consecutive_failures_do_not_accumulate(make_runtime, store, simple_skill, config):
+    """A rejected patch, then several good steps, then another rejection must not add up to too_many_failures."""
+    cfg = config.model_copy(update={"max_decision_failures": 2})
+    n = {"i": 0}
+
+    def script(ctx):
+        n["i"] += 1
+        kind, ev, text = obs_info(ctx)
+        if n["i"] in (1, 5):  # forbidden op -> rejection, twice, separated by successful steps
+            return decision(ctx, [{"op": "set_status", "status": "completed"}], action={"kind": "continue"})
+        if kind == "runtime":
+            assert "completion:" in text
+        if n["i"] >= 8:
+            return complete(ctx)
+        return tool(ctx, "list_directory", path="." if n["i"] % 2 else "src")
+
+    out = await make_runtime(script, cfg=cfg).start(simple_skill, "go")
+    assert out.status == RunStatus.COMPLETED
+    assert store.get_state(out.run_id).counters.patches_rejected == 2
