@@ -46,7 +46,8 @@ def _reasoner(cfg: RuntimeConfig, skill: SkillSpecification | None, model: str |
     from mnestic.agent.pydantic_ai_reasoner import PydanticAIReasoner
 
     settings = {"timeout": cfg.model_timeout_seconds, **cfg.model_settings}
-    return PydanticAIReasoner(name, output_mode=cfg.output_mode, retries=cfg.model_retries, model_settings=settings)
+    return PydanticAIReasoner(name, output_mode=cfg.output_mode, retries=cfg.model_retries, model_settings=settings,
+                              wall_clock_timeout=cfg.model_timeout_seconds)
 
 
 def _runtime(cfg: RuntimeConfig, store: Store, reasoner: Reasoner):

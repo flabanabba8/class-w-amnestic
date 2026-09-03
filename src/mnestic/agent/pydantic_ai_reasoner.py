@@ -7,6 +7,7 @@ Verified against pydantic-ai-slim 2.37: ``Agent(model, output_type=..., retries=
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
@@ -43,7 +44,12 @@ class PydanticAIReasoner:
         output_mode: str = "tool",
         retries: int = 2,
         model_settings: dict[str, Any] | None = None,
+        wall_clock_timeout: float | None = None,
     ):
+        """``wall_clock_timeout`` bounds the *whole* step (all in-step retries) in seconds. Provider/httpx timeouts
+        are per-read and do not fire when a proxy keeps the connection alive, so this is enforced with
+        ``asyncio.wait_for`` regardless of what the transport does."""
+        self.wall_clock_timeout = wall_clock_timeout
         self.model = build_model(model)
         self.model_name = getattr(self.model, "model_name", str(model))
         self.retries = retries
@@ -77,11 +83,17 @@ class PydanticAIReasoner:
     async def decide(self, context: ModelContext) -> ReasonerResult:
         started = time.monotonic()
         try:
-            result = await self.agent.run(
+            run = self.agent.run(
                 context.prompt,
                 instructions=context.instructions,
                 deps=context.state_version,
                 model_settings=self.model_settings,
+            )
+            result = await (asyncio.wait_for(run, self.wall_clock_timeout) if self.wall_clock_timeout else run)
+        except TimeoutError:
+            return ReasonerResult(
+                error=f"model call exceeded the wall-clock timeout of {self.wall_clock_timeout:.0f}s", error_kind="timeout",
+                model_name=self.model_name, duration_ms=_ms(started),
             )
         except (UnexpectedModelBehavior, UsageLimitExceeded, ValidationError) as exc:
             return ReasonerResult(

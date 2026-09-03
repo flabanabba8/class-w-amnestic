@@ -115,3 +115,21 @@ async def test_other_output_modes_construct(mode):
         return ModelResponse(parts=[TextPart(content="{}")])
 
     PydanticAIReasoner(FunctionModel(fn), output_mode=mode)
+
+
+async def test_wall_clock_timeout_becomes_bounded_error(config, store, simple_skill):
+    import asyncio
+
+    async def slow(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        await asyncio.sleep(2)
+        return ModelResponse(parts=[TextPart(content="too late")])
+
+    reasoner = PydanticAIReasoner(FunctionModel(slow), retries=0, wall_clock_timeout=0.2)
+    from mnestic.context.builder import ContextBuilder
+    from mnestic.models.observation import Observation, ObservationKind
+    from mnestic.models.state import ExecutionState, Objective
+
+    ctx = ContextBuilder().build(simple_skill, ExecutionState(run_id="r", skill_id="s", skill_version="1", objective=Objective(statement="o")),
+                                 Observation(run_id="r", step=0, kind=ObservationKind.TASK_INPUT, source="task", content="x"))
+    result = await reasoner.decide(ctx)
+    assert not result.ok and result.error_kind == "timeout" and result.duration_ms < 1500

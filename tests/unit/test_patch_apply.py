@@ -144,3 +144,14 @@ def test_state_size_bytes_tracks_content(base_state: ExecutionState):
     small = state_size_bytes(base_state)
     big = apply_patch(base_state, patch(0, {"op": "add_fact", "statement": "y" * 1000, "evidence_event_ids": ["e"]})).state
     assert state_size_bytes(big) > small + 900
+
+
+def test_every_removal_op_archives_what_it_removes(base_state: ExecutionState):
+    """Found by an agent run (Codex Luna, Q3): remove_constraint dropped data without archiving it."""
+    s = apply_patch(base_state, patch(0, {"op": "add_constraint", "constraint": "no network"},
+                                      {"op": "set_environment", "key": "os", "value": "linux"},
+                                      {"op": "set_entity", "name": "db", "description": "sqlite"})).state
+    r = apply_patch(s, patch(1, {"op": "remove_constraint", "constraint": "no network"},
+                             {"op": "clear_environment", "key": "os"}, {"op": "remove_entity", "name": "db"}))
+    assert {a.kind for a in r.archived} == {"constraint", "environment", "entity"}
+    assert next(a for a in r.archived if a.kind == "constraint").item == {"constraint": "no network"}

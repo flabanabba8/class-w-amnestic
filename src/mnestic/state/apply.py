@@ -421,6 +421,7 @@ def _apply_op(
     elif isinstance(op, RemoveConstraint):
         _require(op.constraint in s.constraints, "constraint not found")
         s.constraints.remove(op.constraint)
+        result.archived.append(ArchivedItem("constraint", {"constraint": op.constraint}, "removed"))
         result.changes.append("constraint removed")
     elif isinstance(op, SetObservationSummary):
         s.last_observation_summary = op.summary or None

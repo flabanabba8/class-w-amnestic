@@ -248,7 +248,7 @@ Environment (`MNESTIC_*`) or CLI flags:
 | `MNESTIC_MODEL` | `mock` | PydanticAI model string, e.g. `anthropic:claude-sonnet-4-5`, `openai:gpt-4o-mini`, `openai-chat:<id>` for OpenAI-compatible proxies (+ `OPENAI_BASE_URL`) |
 | `MNESTIC_OUTPUT_MODE` | `tool` | `tool` \| `native` \| `prompted` structured-output mode |
 | `MNESTIC_MODEL_RETRIES` | `2` | in-step output validation retries |
-| `MNESTIC_MODEL_TIMEOUT` | `300` | seconds per model request; a hung provider becomes a bounded model-error observation and is retried |
+| `MNESTIC_MODEL_TIMEOUT` | `300` | wall-clock seconds per reasoning step (also passed as the provider request timeout); a hung provider becomes a bounded model-error observation and is retried |
 | `MNESTIC_SHELL_MODE` | `allowlist` | `disabled` \| `allowlist` \| `unrestricted` |
 | `MNESTIC_LOG_LEVEL` / `MNESTIC_LOG_JSON` | `INFO` / off | structured logging |
 | `MNESTIC_LOGFIRE` | off | enable Pydantic Logfire if installed |

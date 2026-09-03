@@ -22,7 +22,7 @@ class UsageRecord(BaseModel):
 class ReasonerResult(BaseModel):
     decision: AgentDecision | None = None
     error: str | None = None
-    error_kind: str | None = None  # validation | model | unknown
+    error_kind: str | None = None  # validation | model | timeout | unknown
     model_name: str = "unknown"
     usage: UsageRecord = Field(default_factory=UsageRecord)
     raw_messages: list[dict[str, Any]] = Field(default_factory=list, description="Archived, never re-sent")
