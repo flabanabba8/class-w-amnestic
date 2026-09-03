@@ -33,9 +33,19 @@ def _drop_docstring_description(schema: dict[str, Any]) -> None:
     schema.pop("description", None)
     schema.pop("title", None)
     for prop in schema.get("properties", {}).values():
-        if isinstance(prop, dict):
-            prop.pop("description", None)
-            prop.pop("title", None)
+        _strip_prop(prop)
+
+
+def _strip_prop(prop: Any) -> None:
+    """Remove human-only keys and string length bounds (still enforced in Python; llama.cpp's grammar converter cannot
+    expand ``maxLength: 2000``) from a property schema, including inside anyOf/items."""
+    if not isinstance(prop, dict):
+        return
+    for key in ("description", "title", "maxLength", "minLength"):
+        prop.pop(key, None)
+    for sub in prop.get("anyOf", []) + prop.get("oneOf", []):
+        _strip_prop(sub)
+    _strip_prop(prop.get("items"))
 
 
 class StrictModel(BaseModel):
