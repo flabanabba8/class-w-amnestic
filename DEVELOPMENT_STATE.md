@@ -31,6 +31,9 @@ skills loader + 2 example skills with mock scripts · CLI (15 commands) · obser
 benchmark + ReAct simulator · 83 tests (unit/integration/benchmark, no credentials) · docs (README, ARCHITECTURE, STATE_MODEL,
 PERSISTENCE, MEMORY, CONTEXT_INVARIANTS, CRASH_RECOVERY, SECURITY, IMPLEMENTATION_NOTES, BENCHMARK_REPORT, AUDIT) · AGENTS.md.
 
+- Typed domain state (`domain_schema`, path ops, tool `state_effects`): the runtime keeps the books. Warehouse 300 orders:
+  Sonnet 1.00 / Gemma 12B 0.99 vs transcript agents 0.96 / 0.83 at 8× the tokens (`docs/WAREHOUSE_BENCHMARK.md`).
+
 ## Current blockers
 
 - None.

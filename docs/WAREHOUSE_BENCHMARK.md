@@ -73,7 +73,8 @@ started before `inspect` existed and could not verify.
 | Kimi K3 | SKILL.state (*old build*) | 0.88 | 1.76M | 5.6K → 5.7K, flat | 94K | 2.9 h (NVIDIA stalls) | before inspect/seed/slim |
 | Kimi K3 | SKILL.state, current build | **0.94 over 153 orders** (49/50, 47/49, 43/49 per window) | 0.77M for 153 | 5.0K flat | 36K | 2.9 h, then stopped | three consecutive 300 s NVIDIA stalls tripped the decision-failure cap; timeouts now have their own budget and pause the run instead (fixed after this run) |
 | Gemma 4 12B (local) | ReAct | 0.83 | 6.7M (50% KV-cache reuse) | ~1K → 22K | 9K | 12 min | 131K window, no truncation |
-| Gemma 4 12B | SKILL.state, runtime-kept shelves | 0.71 over 238 | 0.71M | flat 6.3K chars | 45K | 12 min | then looped on `inspect S02`; remaining misses were capacity sums |
+| **Gemma 4 12B** | **SKILL.state, runtime-kept books** | **0.99** (298/300) | 0.87M | flat 6.3K chars, 2.6 s/call | 49K | **13 min** | 0 inspections, 0 rejections |
+| Gemma 4 12B | SKILL.state, runtime-kept shelves only | 0.71 over 238 | 0.71M | flat 6.3K chars | 45K | 12 min | then looped on `inspect S02`; remaining misses were capacity sums |
 | Gemma 4 12B | SKILL.state, model-kept books | 0.48 | 0.80M | flat 5.4K chars | 62K | 13 min | 82% → 23% over the run: arithmetic drift in the model's own table |
 | scripted optimal policy | SKILL.state | 1.00 | — | flat 5.5K chars | — | 1 s | harness ceiling |
 
@@ -102,9 +103,9 @@ schema. Same information reaches the ReAct baseline as text.
   curated memory the model has to rewrite by hand is only as good as the model's arithmetic. Without the `inspect`
   tool the state-based agent drifts (0.85) because a wrong shelf belief is never contradicted; with it, it verifies
   ~once per 18 orders and recovers. The paper's accuracy gain did not reproduce here; parity at 1/8 the cost did.
-- **Small models: the transcript wins when the model keeps the books, and the gap closes as the runtime takes them
-  over.** Gemma 12B: 0.48 with model-kept books, 0.71 with runtime-kept shelves, transcript 0.83; see the row with
-  runtime-kept free/totals for the final number.
+- **Small models: the runtime keeping the books turns a loss into a rout.** Gemma 12B: 0.48 with model-kept books,
+  0.71 with runtime-kept shelves, **0.99 with runtime-kept shelves/free/totals** — against 0.83 as a transcript agent
+  at 8× the tokens. A 12B local model at 2.6 s per order, 99% correct over 300 orders, on a flat 6K-char context.
 - **What would move the small-model number** (not run, since it changes the task): the environment echoing the
   shelf's new contents after each store/ship, so updates are copies instead of arithmetic — a real WMS does that —
   or a skill rule forcing an inspect before every count and after every rejection.
