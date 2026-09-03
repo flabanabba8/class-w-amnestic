@@ -32,8 +32,14 @@ def _drop_docstring_description(schema: dict[str, Any]) -> None:
     prefix). Keeping them out of the per-call output schema roughly halves it."""
     schema.pop("description", None)
     schema.pop("title", None)
-    for prop in schema.get("properties", {}).values():
+    props = schema.get("properties", {})
+    for prop in props.values():
         _strip_prop(prop)
+    # Discriminators have defaults in Python (so `SetPhase(phase=...)` works) but MUST be emitted by the model: a
+    # grammar-constrained decoder treats non-required properties as optional and will happily omit them.
+    for disc in ("op", "kind"):
+        if disc in props and disc not in schema.get("required", []):
+            schema["required"] = [*schema.get("required", []), disc]
 
 
 def _strip_prop(prop: Any) -> None:

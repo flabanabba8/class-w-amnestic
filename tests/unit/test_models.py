@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -120,3 +122,12 @@ def test_model_settings_env(monkeypatch):
 
     monkeypatch.setenv("MNESTIC_MODEL_SETTINGS", '{"openai_reasoning_effort": "low", "temperature": 0}')
     assert RuntimeConfig.from_env().model_settings == {"openai_reasoning_effort": "low", "temperature": 0}
+
+
+def test_discriminators_are_required_in_model_facing_schema():
+    from mnestic.models.action import ToolAction
+    from mnestic.models.patch import SetPhase
+
+    assert "op" in SetPhase.model_json_schema()["required"]
+    assert "kind" in ToolAction.model_json_schema()["required"]
+    assert "maxLength" not in json.dumps(SetPhase.model_json_schema())
