@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from typing import ClassVar
@@ -37,10 +38,12 @@ class ReadTextFileTool(Tool):
         selected = lines[args.start_line - 1 : args.start_line - 1 + args.max_lines]
         numbered = "\n".join(f"{args.start_line + i:>6}: {line}" for i, line in enumerate(selected))
         output, truncated = truncate_output(numbered, MAX_READ_CHARS)
+        rel = str(path.relative_to(ctx.workspace_root.resolve())) if not ctx.config.allow_workspace_escape else str(path)
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
         return ToolResult(
             ok=True, output=output,
-            data={"path": str(path.relative_to(ctx.workspace_root.resolve())) if not ctx.config.allow_workspace_escape else str(path),
-                  "total_lines": len(lines), "returned_lines": len(selected), "truncated": truncated},
+            data={"path": rel, "total_lines": len(lines), "returned_lines": len(selected), "truncated": truncated},
+            facts={rel: {"lines": len(lines), "bytes": path.stat().st_size, "sha": digest, "read_from": args.start_line, "read_lines": len(selected)}},
         )
 
 
@@ -66,7 +69,9 @@ class ListDirectoryTool(Tool):
         note = f"\n… {len(entries) - args.max_entries} more entries" if len(entries) > args.max_entries else ""
         rel = str(path.relative_to(ctx.workspace_root.resolve())) if not ctx.config.allow_workspace_escape else str(path)
         header = f"directory {rel!r} ({len(entries)} entries; columns: kind size name):"
-        return ToolResult(ok=True, output=header + "\n" + ("\n".join(lines) or "(empty)") + note, data={"path": rel, "count": len(entries)})
+        names = [p.name + ("/" if p.is_dir() else "") for p in entries[:60]]
+        return ToolResult(ok=True, output=header + "\n" + ("\n".join(lines) or "(empty)") + note, data={"path": rel, "count": len(entries)},
+                          facts={rel or ".": {"entries": len(entries), "names": names}})
 
 
 class SearchTextTool(Tool):
@@ -117,7 +122,9 @@ class SearchTextTool(Tool):
                 break
         header = f"search {mode} pattern {args.pattern!r} under {args.path!r} (glob {args.glob}): {len(results)} match(es) in {scanned} file(s) scanned"
         output, _ = truncate_output(header + "\n" + ("\n".join(results) or "(no matches)"), 50_000)
-        return ToolResult(ok=True, output=output, data={"matches": len(results), "files_scanned": scanned, "mode": mode, "capped": len(results) >= args.max_results})
+        hit_files = sorted({r.split(":", 1)[0] for r in results})
+        return ToolResult(ok=True, output=output, data={"matches": len(results), "files_scanned": scanned, "mode": mode, "capped": len(results) >= args.max_results},
+                          facts={args.pattern[:80]: {"under": args.path, "matches": len(results), "files": hit_files[:20], "mode": mode}})
 
 
 def _looks_binary(path: Path) -> bool:
@@ -149,4 +156,6 @@ class WriteWorkspaceFileTool(Tool):
 
         rel = str(path.relative_to(ctx.workspace_root.resolve())) if not ctx.config.allow_workspace_escape else str(path)
         artifact = ArtifactReference(kind="file", locator=rel, description=f"written by write_workspace_file at step {ctx.step}")
-        return ToolResult(ok=True, output=f"wrote {len(args.content)} chars to {rel}", data={"path": rel, "chars": len(args.content)}, artifact=artifact)
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+        return ToolResult(ok=True, output=f"wrote {len(args.content)} chars to {rel}", data={"path": rel, "chars": len(args.content)}, artifact=artifact,
+                          facts={rel: {"bytes": path.stat().st_size, "sha": digest, "lines": args.content.count("\n") + 1, "written": True}})

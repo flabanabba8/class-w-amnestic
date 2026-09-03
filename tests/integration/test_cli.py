@@ -36,7 +36,9 @@ def test_cli_full_workflow(cli, workspace):
     assert "v0" in out and "fact added" in out
     code, out = cli("events", run_id, "--type", "tool.finished")
     assert out.count("tool.finished") == 4
-    code, out = cli("diff", run_id, "0", "3")
+    code, out = cli("state", run_id, "--model-view")
+    last = str(json.loads(out)["state_version"])
+    code, out = cli("diff", run_id, "0", last)
     assert "current_phase" in out
     code, out = cli("memory", "search", run_id, "PORT 8000", "--json")
     assert json.loads(out)["total_matches"] >= 1

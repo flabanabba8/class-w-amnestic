@@ -97,10 +97,13 @@ class WarehouseEnv:
 
     def initial_ops(self) -> list[dict[str, Any]]:
         """Σ₀: the known starting inventory, typed (domain.shelves.<id>.<item> = qty) — the runtime keeps these books."""
-        return [{"op": "set_path", "path": "capacity", "value": self.capacity},
-                {"op": "set_path", "path": "shelves", "value": {shelf: dict(items) for shelf, items in self.inventory.items()}},
-                {"op": "set_path", "path": "free", "value": {shelf: self.capacity - self.used(shelf) for shelf in self.inventory}},
-                {"op": "set_path", "path": "totals", "value": {item: self.total(item) for item in ITEMS if self.total(item)}}]
+        ops: list[dict[str, Any]] = [{"op": "set_path", "path": "capacity", "value": self.capacity}]
+        for shelf in self.inventory:  # same shape the warehouse tool reports, so the ledger is uniform from step 0
+            ops.append({"op": "set_path", "path": f"warehouse.{shelf}", "value": {"holds": dict(self.inventory[shelf]), "free": self.capacity - self.used(shelf)}})
+        for item in ITEMS:
+            if self.total(item):
+                ops.append({"op": "set_path", "path": f"warehouse.total_{item}", "value": {"item": item, "total": self.total(item)}})
+        return ops
 
     def initial_observation(self) -> str:
         lines = [f"Warehouse: {self.shelves} shelves ({', '.join(self.inventory)}), capacity {self.capacity} units each.", "Initial contents:"]
@@ -187,14 +190,12 @@ class WarehouseTool(Tool):
 
     async def run(self, args: Args, ctx: ToolContext) -> ToolResult:
         ok, msg = self.env.act(args.action, args.shelf, args.item, args.qty, args.answer)
-        effects: list[dict[str, Any]] = []
-        if ok and args.action in ("store", "ship") and args.shelf and args.item and args.qty:
-            delta = args.qty if args.action == "store" else -args.qty
-            effects += [{"op": "adjust_path", "path": f"shelves.{args.shelf}.{args.item}", "delta": delta},
-                        {"op": "adjust_path", "path": f"free.{args.shelf}", "delta": -delta, "drop_at_zero": False},
-                        {"op": "adjust_path", "path": f"totals.{args.item}", "delta": delta}]
-        return ToolResult(ok=True, output=msg, data={"correct": ok, "orders_done": self.env.cursor, "orders_total": len(self.env.order_list)},
-                          state_effects=effects)
+        facts: dict[str, dict[str, Any]] = {}
+        if args.shelf in self.env.inventory and args.action in ("store", "ship", "inspect"):
+            facts[args.shelf] = {"holds": dict(self.env.inventory[args.shelf]), "free": self.env.capacity - self.env.used(args.shelf)}
+        if ok and args.item and args.action in ("store", "ship"):
+            facts[f"total_{args.item}"] = {"item": args.item, "total": self.env.total(args.item)}
+        return ToolResult(ok=True, output=msg, data={"correct": ok, "orders_done": self.env.cursor, "orders_total": len(self.env.order_list)}, facts=facts)
 
 
 WAREHOUSE_SKILL = SkillSpecification(
@@ -203,10 +204,10 @@ WAREHOUSE_SKILL = SkillSpecification(
     required_tools=["warehouse"],
     instructions=(
         "You operate a warehouse. Each observation gives you the outcome of your last action and the NEXT order.\n"
-        "Your state's `domain` holds the books and the runtime updates them after every successful store/ship — you never edit them: "
-        "`domain.shelves` (shelf -> item -> qty), `domain.free` (shelf -> free units), `domain.totals` (item -> total across shelves). "
-        "Your job is to choose: for store, any shelf with free >= qty; for ship, any shelf whose shelves.<shelf>.<item> >= qty; "
-        "for count, answer with totals.<item> (0 if absent).\n"
+        "Your state's `domain.warehouse` is a ledger the runtime keeps from what the warehouse tool reports — you never edit it: "
+        "`domain.warehouse.<shelf>` = {holds: item->qty, free: units} and `domain.warehouse.total_<item>` = {total}. "
+        "Your job is to choose: for store, any shelf with free >= qty; for ship, any shelf whose holds.<item> >= qty; "
+        "for count, answer with total_<item>.total (0 if absent).\n"
         "Respond to every order with exactly one `warehouse` tool action; an empty state_patch is fine. `inspect` a shelf (does not "
         "consume the order) if a store/ship was rejected. When the observation says ALL ORDERS DONE, submit completion with outcome=success."
     ),
@@ -214,14 +215,9 @@ WAREHOUSE_SKILL = SkillSpecification(
     allowed_ops=["set_observation_summary", "set_phase"],
     allowed_actions=["tool"],
     domain_schema={
-        "type": "object", "additionalProperties": False,
-        "properties": {
-            "capacity": {"type": "integer", "minimum": 1},
-            "shelves": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}},
-            "free": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
-            "totals": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
-        },
-        "required": ["capacity", "shelves", "free", "totals"],
+        "type": "object",
+        "properties": {"capacity": {"type": "integer", "minimum": 1}, "warehouse": {"type": "object"}},
+        "required": ["capacity", "warehouse"],
     },
 )
 
@@ -233,8 +229,10 @@ def warehouse_script(context: Any) -> dict[str, Any]:
     state = parse_state(context)
     v = state["state_version"]
     obs = observation_text(context)
-    shelves: dict[str, dict[str, int]] = state["domain"]["shelves"]
-    cap = int(state["domain"]["capacity"])
+    ledger = state["domain"]["warehouse"]
+    shelves: dict[str, dict[str, int]] = {k: v["holds"] for k, v in ledger.items() if not k.startswith("total_")}
+    free: dict[str, int] = {k: v["free"] for k, v in ledger.items() if not k.startswith("total_")}
+    totals = {v["item"]: v["total"] for k, v in ledger.items() if k.startswith("total_")}
     if "ALL ORDERS DONE" in obs:
         return {"rationale_summary": "done", "state_patch": {"expected_state_version": v, "ops": []}, "completion": {"outcome": "success", "summary": "orders complete"}}
     if "ORDER #" not in obs:  # runtime feedback: the pending order is whatever we recorded last time
@@ -246,7 +244,7 @@ def warehouse_script(context: Any) -> dict[str, Any]:
     action: dict[str, Any]
     if kind == "store":
         qty, item = int(m.group(2)), m.group(3)
-        shelf = next(sh for sh, inv in sorted(shelves.items()) if sum(inv.values()) + qty <= cap)
+        shelf = next(sh for sh in sorted(shelves) if free[sh] >= qty)
         action = {"kind": "tool", "tool_name": "warehouse", "arguments": {"action": "store", "shelf": shelf, "item": item, "qty": qty}}
     elif kind == "ship":
         qty, item = int(m.group(2)), m.group(3)
@@ -254,7 +252,7 @@ def warehouse_script(context: Any) -> dict[str, Any]:
         action = {"kind": "tool", "tool_name": "warehouse", "arguments": {"action": "ship", "shelf": shelf, "item": item, "qty": qty}}
     else:
         item = m.group(4)
-        action = {"kind": "tool", "tool_name": "warehouse", "arguments": {"action": "count", "answer": sum(inv.get(item, 0) for inv in shelves.values())}}
+        action = {"kind": "tool", "tool_name": "warehouse", "arguments": {"action": "count", "answer": totals.get(item, 0)}}
     return {"rationale_summary": kind, "state_patch": {"expected_state_version": v, "ops": ops}, "action": action}
 
 

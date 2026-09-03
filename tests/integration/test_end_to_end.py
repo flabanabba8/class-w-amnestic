@@ -80,7 +80,8 @@ async def test_initial_ops_seed_state_before_first_model_call(make_runtime, stor
     assert ev.payload["source"] == "runtime:initial_ops"
 
 
-async def test_tool_state_effects_are_applied_by_the_runtime(make_runtime, store, simple_skill):
+async def test_runtime_keeps_a_ledger_of_tool_facts(make_runtime, store, simple_skill):
+    """Any tool that returns `facts` gets a runtime-maintained ledger under domain.<tool>.<key>; the model never writes it."""
     from typing import ClassVar
 
     from pydantic import BaseModel, ConfigDict
@@ -89,20 +90,21 @@ async def test_tool_state_effects_are_applied_by_the_runtime(make_runtime, store
     from mnestic.tools.base import Tool, ToolContext, ToolResult
     from tests.integration.helpers import complete, obs_info, tool
 
-    class Bump(Tool):
-        name: ClassVar[str] = "bump"
-        description: ClassVar[str] = "adds to a counter"
+    class Probe(Tool):
+        name: ClassVar[str] = "probe"
+        description: ClassVar[str] = "reports a sensor"
 
         class Args(BaseModel):
             model_config = ConfigDict(extra="forbid")
-            n: int
+            sensor: str
+            value: int
 
         async def run(self, args: Args, ctx: ToolContext) -> ToolResult:
-            return ToolResult(ok=True, output=f"bumped by {args.n}", state_effects=[{"op": "adjust_path", "path": "counter.total", "delta": args.n}])
+            return ToolResult(ok=True, output=f"{args.sensor}={args.value}", facts={args.sensor: {"value": args.value}})
 
     reg = default_registry()
-    reg.register(Bump())
-    skill = simple_skill.model_copy(update={"required_tools": ["bump"], "domain_schema": {"type": "object", "properties": {"counter": {"type": "object"}}}})
+    reg.register(Probe())
+    skill = simple_skill.model_copy(update={"required_tools": ["probe"]})
     seen = []
 
     def script(ctx):
@@ -110,12 +112,41 @@ async def test_tool_state_effects_are_applied_by_the_runtime(make_runtime, store
 
         kind, ev, text = obs_info(ctx)
         seen.append(parse_state(ctx)["domain"])
-        if len(seen) < 3:
-            return tool(ctx, "bump", n=len(seen))
+        n = len(seen)
+        if n == 1:
+            return tool(ctx, "probe", sensor="temp", value=20)
+        if n == 2:
+            return tool(ctx, "probe", sensor="temp", value=25)  # same entity: latest fact wins
+        if n == 3:
+            return tool(ctx, "probe", sensor="hum", value=40)
         return complete(ctx)
 
     out = await make_runtime(script, tools=reg).start(skill, "go")
     assert out.status.value == "completed"
-    assert seen == [{}, {"counter": {"total": 1}}, {"counter": {"total": 3}}]  # the model never wrote these
-    assert "state updated by runtime" in store.list_observations(out.run_id)[1].content
-    assert any(e.payload.get("source") == "tool:bump" for e in store.list_events(out.run_id, limit=200, event_type="patch.applied"))
+    assert seen[0] == {}
+    assert seen[1]["probe"]["temp"]["value"] == 20 and seen[2]["probe"]["temp"]["value"] == 25
+    assert set(seen[3]["probe"]) == {"temp", "hum"} and seen[3]["probe"]["hum"]["_event"].startswith("evt_")
+    assert "ledger updated: domain.probe.temp" in store.list_observations(out.run_id)[1].content
+
+
+async def test_builtin_tools_report_facts(make_runtime, store, simple_skill, workspace):
+    from tests.integration.helpers import complete, obs_info, tool
+
+    def script(ctx):
+        from mnestic.benchmarks.scripts import parse_state
+
+        kind, ev, text = obs_info(ctx)
+        d = parse_state(ctx)["domain"]
+        if kind == "task_input":
+            return tool(ctx, "read_text_file", path="src/app.py")
+        if "read_text_file" in d and "search_text" not in d:
+            assert d["read_text_file"]["src_app_py"]["lines"] == 3 and "sha" in d["read_text_file"]["src_app_py"]
+            return tool(ctx, "search_text", pattern="PORT", path="src")
+        if "search_text" in d and "write_workspace_file" not in d:
+            assert d["search_text"]["PORT"]["matches"] == 1 and d["search_text"]["PORT"]["files"] == ["src/app.py"]
+            return tool(ctx, "write_workspace_file", path="out.txt", content="hello\n")
+        assert d["write_workspace_file"]["out_txt"]["written"] is True
+        return complete(ctx)
+
+    out = await make_runtime(script).start(simple_skill, "go")
+    assert out.status.value == "completed"

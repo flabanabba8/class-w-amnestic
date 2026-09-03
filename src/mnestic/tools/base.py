@@ -51,7 +51,11 @@ class ToolResult(BaseModel):
     error: str | None = None
     data: dict[str, Any] | None = None
     artifact: ArtifactReference | None = None
-    state_effects: list[dict[str, Any]] = Field(default_factory=list, description="Patch ops the runtime applies deterministically after this tool ran (what *happened*, as opposed to what the model decides next)")
+    facts: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Facts about named things this call established, keyed by entity (a path, a shelf id, a pattern…). The runtime "
+        "keeps the latest fact per entity under domain.<tool>.<key> — a ledger the model reads instead of re-deriving.",
+    )
 
 
 class Tool(ABC):

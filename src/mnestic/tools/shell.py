@@ -67,6 +67,7 @@ class ShellTool(Tool):
         return ToolResult(
             ok=proc.returncode == 0, output=text, error=None if proc.returncode == 0 else f"exit code {proc.returncode}",
             data={"exit_code": proc.returncode, "duration_ms": duration_ms, "truncated": truncated},
+            facts={args.command[:80]: {"exit_code": proc.returncode, "duration_ms": duration_ms, "output_chars": len(combined)}},
         )
 
 

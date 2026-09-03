@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 import traceback
 from dataclasses import dataclass
@@ -32,7 +33,7 @@ from mnestic.models.observation import Observation, ObservationKind
 from mnestic.models.state import RunStatus
 from mnestic.state.apply import PatchRejected, apply_patch
 from mnestic.storage.store import StaleWriteError
-from mnestic.tools.base import ToolContext
+from mnestic.tools.base import ToolContext, ToolResult
 
 Ctx = GraphRunContext[RuntimeGraphState, RuntimeDeps]
 
@@ -324,23 +325,25 @@ class CaptureObservation(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
             s.execution_state.counters.tool_calls += 1
             if not result.ok:
                 s.execution_state.counters.errors += 1
-        if result.ok and result.state_effects:
-            # The tool reported what happened; the runtime records it. No model arithmetic, no re-derivation.
+        ledger_ops = _ledger_ops(s, action.tool_name, result, d.config.ledger_entries_per_tool, ev_id) if result.ok else []
+        if ledger_ops:
+            # The tool reported facts about named things; the runtime keeps the latest fact per thing (domain.<tool>.<key>).
+            # Generic for every tool; no per-task bookkeeping code, no model arithmetic, no re-derivation.
             from mnestic.models.patch import StatePatch
 
-            effects = StatePatch(expected_state_version=s.execution_state.state_version, ops=result.state_effects)  # type: ignore[arg-type]
+            effects = StatePatch(expected_state_version=s.execution_state.state_version, ops=ledger_ops)  # type: ignore[arg-type]
             try:
                 eff = apply_patch(s.execution_state, effects, limits=d.config.state_limits, domain_schema=d.skill.domain_schema)
                 with d.store.transaction():
                     pid = d.store.record_patch(s.run_id, s.step, effects, status="applied", resulting_version=eff.state.state_version, changes=eff.changes)
                     d.store.commit_state(eff.state, expected_version=s.execution_state.state_version, patch_id=pid, step=s.step)
-                    d.store.append_event(s.run_id, s.step, EventType.PATCH_APPLIED, f"tool effects applied by runtime: {'; '.join(eff.changes)[:200]}",
+                    d.store.append_event(s.run_id, s.step, EventType.PATCH_APPLIED, f"ledger updated by runtime from {action.tool_name}: {'; '.join(eff.changes)[:200]}",
                                          {"patch_id": pid, "source": f"tool:{action.tool_name}", "changes": eff.changes}, ref_table="state_patches", ref_id=pid)
                 s.execution_state = eff.state
-                full += "\n[state updated by runtime: " + "; ".join(eff.changes)[:300] + "]"
+                full += "\n[ledger updated: " + ", ".join(f"domain.{action.tool_name}.{k}" for k in result.facts)[:300] + "]"
             except PatchRejected as exc:
-                d.store.save_error(s.run_id, s.step, "tool_effect_rejected", str(exc))
-                full += f"\n[tool state effects rejected: {exc}]"
+                d.store.save_error(s.run_id, s.step, "ledger_rejected", str(exc))
+                full += f"\n[ledger update rejected: {exc}]"
         data = dict(result.data or {})
         data["ok"] = result.ok
         data["request"] = {"tool": action.tool_name, "arguments": action.arguments}  # a stateless step must see what was asked
@@ -463,6 +466,25 @@ class Enter(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
 
 
 # ---- shared helpers ------------------------------------------------------------------------
+
+
+def _ledger_ops(s: RuntimeGraphState, tool: str, result: ToolResult, max_entries: int, event_id: str) -> list[dict[str, Any]]:
+    """Turn ``result.facts`` into set_path ops on ``domain.<tool>.<key>``; evict the oldest keys beyond ``max_entries``.
+
+    Each fact carries provenance (``_event``, ``_step``). Eviction is a delete_path, which the runtime archives.
+    """
+    if not result.facts:
+        return []
+    ops: list[dict[str, Any]] = []
+    existing = dict(s.execution_state.domain.get(tool, {}) or {})
+    for key, fact in result.facts.items():
+        safe = re.sub(r"[^A-Za-z0-9_\-]", "_", key)[:120] or "_"
+        ops.append({"op": "set_path", "path": f"{tool}.{safe}", "value": {**fact, "_event": event_id, "_step": s.step}})
+        existing[safe] = {"_step": s.step}
+    if len(existing) > max_entries:
+        oldest = sorted(existing.items(), key=lambda kv: kv[1].get("_step", -1))[: len(existing) - max_entries]
+        ops = [{"op": "delete_path", "path": f"{tool}.{k}"} for k, _ in oldest] + ops
+    return ops
 
 
 def _action_summary(action: Any) -> str:

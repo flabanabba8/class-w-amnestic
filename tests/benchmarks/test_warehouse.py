@@ -66,6 +66,7 @@ def test_books_are_kept_by_the_runtime_not_the_model(tmp_path):
     r = asyncio.run(run_skillstate(ScriptedReasoner(warehouse_script), orders=40, shelves=12, seed=3, db_path=tmp_path / "b.db"))
     assert r.score == 1.0
     st = Store(Database(tmp_path / "b.db")).get_state(r.notes.split("run_id=")[1].split()[0])
-    d = st.domain
-    assert all(d["free"][sh] == 12 - sum(inv.values()) for sh, inv in d["shelves"].items())
-    assert all(d["totals"].get(item, 0) == sum(inv.get(item, 0) for inv in d["shelves"].values()) for item in {i for inv in d["shelves"].values() for i in inv})
+    ledger = st.domain["warehouse"]
+    shelves = {k: v for k, v in ledger.items() if not k.startswith("total_")}
+    assert len(shelves) == 12 and all(v["free"] == 12 - sum(v["holds"].values()) for v in shelves.values())
+    assert all("_event" in v for v in shelves.values() if "_step" in v)  # provenance on every runtime-written fact

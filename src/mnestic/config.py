@@ -74,6 +74,7 @@ class RuntimeConfig(BaseModel):
     max_decision_failures: int = Field(default=3, ge=1, description="Consecutive rejected/failed decisions before the run fails")
     max_timeout_failures: int = Field(default=8, ge=1, description="Consecutive provider timeouts before the run fails (stalls are not model mistakes)")
     allow_workspace_escape: bool = False
+    ledger_entries_per_tool: int = Field(default=40, ge=1, description="Latest facts kept per tool in domain.<tool>; older ones are evicted to the archive")
     state_limits: StateLimits = Field(default_factory=StateLimits)
     shell: ShellPolicy = Field(default_factory=ShellPolicy)
     log_level: str = "INFO"
