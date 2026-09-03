@@ -89,13 +89,18 @@ class WarehouseEnv:
     def used(self, shelf: str) -> int:
         return sum(self.inventory[shelf].values())
 
+    def total(self, item: str) -> int:
+        return sum(inv.get(item, 0) for inv in self.inventory.values())
+
     def current_order(self) -> Order | None:
         return self.order_list[self.cursor] if self.cursor < len(self.order_list) else None
 
     def initial_ops(self) -> list[dict[str, Any]]:
         """Σ₀: the known starting inventory, typed (domain.shelves.<id>.<item> = qty) — the runtime keeps these books."""
         return [{"op": "set_path", "path": "capacity", "value": self.capacity},
-                {"op": "set_path", "path": "shelves", "value": {shelf: dict(items) for shelf, items in self.inventory.items()}}]
+                {"op": "set_path", "path": "shelves", "value": {shelf: dict(items) for shelf, items in self.inventory.items()}},
+                {"op": "set_path", "path": "free", "value": {shelf: self.capacity - self.used(shelf) for shelf in self.inventory}},
+                {"op": "set_path", "path": "totals", "value": {item: self.total(item) for item in ITEMS if self.total(item)}}]
 
     def initial_observation(self) -> str:
         lines = [f"Warehouse: {self.shelves} shelves ({', '.join(self.inventory)}), capacity {self.capacity} units each.", "Initial contents:"]
@@ -127,7 +132,7 @@ class WarehouseEnv:
                 msg = f"WRONG: {shelf} has only {self.capacity - self.used(shelf)} free (holds {self._desc(shelf)})"
             else:
                 self.inventory[shelf][o.item] = self.inventory[shelf].get(o.item, 0) + o.qty
-                ok, msg = True, f"OK: stored {o.qty} {o.item} on {shelf}"
+                ok, msg = True, f"OK: stored {o.qty} {o.item} on {shelf} ({shelf} now {self.capacity - self.used(shelf)} free; {o.item} total now {self.total(o.item)})"
         elif o.kind == "ship":
             if action != "ship" or item != o.item or qty != o.qty:
                 msg = f"WRONG: expected ship {o.qty} {o.item}, got {action} {qty} {item}"
@@ -139,7 +144,7 @@ class WarehouseEnv:
                 self.inventory[shelf][o.item] -= o.qty
                 if self.inventory[shelf][o.item] == 0:
                     del self.inventory[shelf][o.item]
-                ok, msg = True, f"OK: shipped {o.qty} {o.item} from {shelf}"
+                ok, msg = True, f"OK: shipped {o.qty} {o.item} from {shelf} ({shelf} now {self.capacity - self.used(shelf)} free; {o.item} total now {self.total(o.item)})"
         else:
             truth = sum(s.get(o.item, 0) for s in self.inventory.values())
             if action != "count" or answer is None:
@@ -185,7 +190,9 @@ class WarehouseTool(Tool):
         effects: list[dict[str, Any]] = []
         if ok and args.action in ("store", "ship") and args.shelf and args.item and args.qty:
             delta = args.qty if args.action == "store" else -args.qty
-            effects.append({"op": "adjust_path", "path": f"shelves.{args.shelf}.{args.item}", "delta": delta})
+            effects += [{"op": "adjust_path", "path": f"shelves.{args.shelf}.{args.item}", "delta": delta},
+                        {"op": "adjust_path", "path": f"free.{args.shelf}", "delta": -delta, "drop_at_zero": False},
+                        {"op": "adjust_path", "path": f"totals.{args.item}", "delta": delta}]
         return ToolResult(ok=True, output=msg, data={"correct": ok, "orders_done": self.env.cursor, "orders_total": len(self.env.order_list)},
                           state_effects=effects)
 
@@ -196,10 +203,10 @@ WAREHOUSE_SKILL = SkillSpecification(
     required_tools=["warehouse"],
     instructions=(
         "You operate a warehouse. Each observation gives you the outcome of your last action and the NEXT order.\n"
-        "`domain.shelves` in your state is the inventory (shelf -> item -> quantity) and `domain.capacity` the per-shelf limit. "
-        "The runtime updates `domain.shelves` itself after every successful store/ship — you never edit it. Your job is to choose: "
-        "for store, a shelf whose total quantity + qty <= capacity; for ship, a shelf whose quantity of the item >= qty; for count, "
-        "the sum of that item across all shelves, answered with `answer`.\n"
+        "Your state's `domain` holds the books and the runtime updates them after every successful store/ship — you never edit them: "
+        "`domain.shelves` (shelf -> item -> qty), `domain.free` (shelf -> free units), `domain.totals` (item -> total across shelves). "
+        "Your job is to choose: for store, any shelf with free >= qty; for ship, any shelf whose shelves.<shelf>.<item> >= qty; "
+        "for count, answer with totals.<item> (0 if absent).\n"
         "Respond to every order with exactly one `warehouse` tool action; an empty state_patch is fine. `inspect` a shelf (does not "
         "consume the order) if a store/ship was rejected. When the observation says ALL ORDERS DONE, submit completion with outcome=success."
     ),
@@ -211,8 +218,10 @@ WAREHOUSE_SKILL = SkillSpecification(
         "properties": {
             "capacity": {"type": "integer", "minimum": 1},
             "shelves": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}},
+            "free": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+            "totals": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
         },
-        "required": ["capacity", "shelves"],
+        "required": ["capacity", "shelves", "free", "totals"],
     },
 )
 

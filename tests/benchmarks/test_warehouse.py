@@ -56,3 +56,16 @@ def test_inspect_verifies_without_consuming_the_order():
     assert ok and msg.startswith("INSPECT S01: holds") and "free)" in msg and "ORDER #1" in msg
     assert env.cursor == before and env.log == [] and env.inspections == 1
     assert not env.act("inspect", "S99", None, None, None)[0]
+
+
+def test_books_are_kept_by_the_runtime_not_the_model(tmp_path):
+    """After a store, domain.shelves/free/totals reflect it without any model-authored op."""
+    from mnestic.storage.db import Database
+    from mnestic.storage.store import Store
+
+    r = asyncio.run(run_skillstate(ScriptedReasoner(warehouse_script), orders=40, shelves=12, seed=3, db_path=tmp_path / "b.db"))
+    assert r.score == 1.0
+    st = Store(Database(tmp_path / "b.db")).get_state(r.notes.split("run_id=")[1].split()[0])
+    d = st.domain
+    assert all(d["free"][sh] == 12 - sum(inv.values()) for sh, inv in d["shelves"].items())
+    assert all(d["totals"].get(item, 0) == sum(inv.get(item, 0) for inv in d["shelves"].values()) for item in {i for inv in d["shelves"].values() for i in inv})
