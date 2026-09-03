@@ -11,4 +11,5 @@ completion_criteria:
 phases: [start, counting, done]
 initial_phase: start
 default_max_steps: 2000
+allowed_ops: [set_environment, set_phase, set_observation_summary]
 reasoner_script: mnestic.benchmarks.scripts:counter_script

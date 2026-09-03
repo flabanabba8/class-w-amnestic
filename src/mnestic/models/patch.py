@@ -38,7 +38,7 @@ class AddFact(StrictModel):
     id: Identifier | None = None
     statement: ShortText
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
-    evidence_event_ids: EvidenceIds = Field(description="Archive event ids that support this fact (required)")
+    evidence_event_ids: EvidenceIds = Field(description="archive event ids supporting it")
 
 
 class SupersedeFact(StrictModel):

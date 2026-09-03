@@ -13,7 +13,7 @@ class ToolAction(StrictModel):
     kind: Literal["tool"] = "tool"
     tool_name: str = Field(min_length=1, max_length=80)
     arguments: dict[str, Any] = Field(default_factory=dict)
-    purpose: str = Field(default="", max_length=500, description="Short statement of why (externally safe)")
+    purpose: str = Field(default="", max_length=500)
 
 
 class RequestHumanInput(StrictModel):

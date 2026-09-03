@@ -74,7 +74,7 @@ class MemoryQuery(StrictModel):
     """Explicit request to retrieve from archival memory. Bounded by ``limit``."""
 
     query_type: MemoryQueryType
-    text: str | None = Field(default=None, max_length=500, description="Search terms (search/observations/tool_executions/artifacts/semantic)")
+    text: str | None = Field(default=None, max_length=500, description="search terms")
     event_id: str | None = Field(default=None, max_length=80)
     event_type: str | None = Field(default=None, max_length=80)
     version: int | None = Field(default=None, ge=0)

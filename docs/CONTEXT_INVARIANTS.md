@@ -81,3 +81,10 @@ unambiguous section delimiters:
 - observation content appended into any state list without a patch
 - ContextBuilder importing `storage` or receiving a store/connection
 - tool outputs concatenated across steps
+
+## I8 — Measure at the provider, not at the builder
+
+`ModelContext.char_count` is what *we* render. The request the provider receives also carries the structured-output
+schema (`AgentDecision`, pruned by the skill's `allowed_ops`) and, on some proxy routes, the route's own system prompt.
+The first live warehouse runs hid a 4× gap this way. Token claims must cite `model_calls.input_tokens` /
+`cache_read_tokens` (provider-reported) or the proxy's own log, and every skill should declare `allowed_ops`.

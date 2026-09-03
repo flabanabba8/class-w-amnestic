@@ -86,6 +86,7 @@ BENCH_SKILL = SkillSpecification(
     description="Calls the probe tool N times, keeping only a one-line summary in state.",
     required_tools=["probe"], instructions="Call probe repeatedly until n == target, then complete.",
     completion_criteria=["n == target"], default_max_steps=100_000,
+    allowed_ops=["set_environment", "set_observation_summary"],
 )
 
 
@@ -154,7 +155,12 @@ async def _run(steps: int, observation_chars: int, checkpoints: list[int] | None
              "react_chars": react_sizes[c - 1]} for c in checkpoints]
     late = sizes[len(sizes) // 2 :] or sizes
     bounded = (max(late) - min(late)) <= max(200, int(0.05 * max(late))) and not leaks
+    from mnestic.models.decision import AgentDecision, decision_type_for
+
+    schema_chars = len(json.dumps(decision_type_for(BENCH_SKILL.allowed_ops).model_json_schema(), separators=(",", ":")))
+    full_chars = len(json.dumps(AgentDecision.model_json_schema(), separators=(",", ":")))
     return {
+        "output_schema_chars": schema_chars, "full_schema_chars": full_chars,
         "steps": len(sizes), "observation_chars": observation_chars, "outcome": outcome.status.value,
         "mnestic": {"first": sizes[0], "min": min(sizes), "max": max(sizes), "mean": round(statistics.mean(sizes), 1),
                        "last": sizes[-1], "total_chars": sum(sizes)},
@@ -184,6 +190,11 @@ def render_report(r: dict[str, Any]) -> str:
         lines.append(f"| {row['step']} | {row['mnestic_chars']:,} | {row['mnestic_tokens_est']:,} | {row['state_section_bytes']:,} | {row['react_chars']:,} |")
     s, b = r["mnestic"], r["react"]
     lines += [
+        "", "## What the provider actually receives", "",
+        "The context above is *our* text. Every call also carries the structured-output schema (`AgentDecision`), sent as a "
+        f"tool definition: **{r.get('output_schema_chars', 0):,} chars** with this skill's `allowed_ops` "
+        f"(full 30-op schema: {r.get('full_schema_chars', 0):,} chars). Some proxy routes add their own system prompt on top. "
+        "Measure per-call tokens at the provider, not at the context builder — see docs/WAREHOUSE_BENCHMARK.md.",
         "", "## Summary", "",
         f"- SKILL.state: first={s['first']:,} min={s['min']:,} max={s['max']:,} mean={s['mean']:,} last={s['last']:,} chars; "
         f"cumulative={s['total_chars']:,} chars over {r['steps']} steps.",

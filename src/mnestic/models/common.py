@@ -28,8 +28,14 @@ def new_id(prefix: str) -> str:
 
 
 def _drop_docstring_description(schema: dict[str, Any]) -> None:
-    """Class docstrings are for humans; keeping them out of the output schema saves tokens on every call."""
+    """Docstrings, field descriptions and titles are for humans (and live in the output contract prose, which is a cached
+    prefix). Keeping them out of the per-call output schema roughly halves it."""
     schema.pop("description", None)
+    schema.pop("title", None)
+    for prop in schema.get("properties", {}).values():
+        if isinstance(prop, dict):
+            prop.pop("description", None)
+            prop.pop("title", None)
 
 
 class StrictModel(BaseModel):
