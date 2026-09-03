@@ -16,6 +16,7 @@ Found by running `codebase-research` on this repository with four models through
   loop trips fail the run independently of the (now correctly resetting) failure streak.
 - Output contract: one tool call per step; finish only via `completion`; clearer rejection
   message when a patch tries to set a terminal status.
+- `docs/PAPER_ALIGNMENT.md`: paper-and-brief alignment review (what matches, what is stricter, gaps).
 - `MNESTIC_MODEL_TIMEOUT` (default 300 s) per model request.
 - `codebase-research` skill: pacing guidance.
 - Result: zero wasted tool calls for all four models; Kimi 12→9 steps, 141K→87K tokens;
