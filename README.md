@@ -153,7 +153,11 @@ Tested end-to-end through a local [9Router](https://9router.com/) instance (`OPE
 | `openai-chat:groq/openai/gpt-oss-120b` | `prompted` (`MNESTIC_OUTPUT_MODE=prompted`) | completed in 5 steps, 6 calls (3 in-step retries), correct answer |
 | `openai-chat:nvidia/moonshotai/kimi-k3` | `tool` | completed in 4 steps, 5 calls, zero retries, most precise answer (file + line) |
 
-Rule of thumb: frontier models → `tool`; smaller/open models or strict proxies → `prompted`. Either way the
+| `openai-chat:gemma-4-12b-uncensored` (local llama-server, `--jinja`) | `native` + `MNESTIC_MODEL_SETTINGS='{"openai_reasoning_effort":"low"}'` | grammar-constrained decoding: malformed decisions are impossible; see docs/WAREHOUSE_BENCHMARK.md for results |
+
+Rule of thumb: frontier models → `tool`; smaller/open models or strict proxies → `prompted`; llama.cpp → `native` (the schema
+becomes a GBNF grammar). Reasoning models on llama.cpp need `openai_reasoning_effort` set, or they spend the whole
+output budget thinking and never emit the decision. Either way the
 per-step context stayed flat (~7.5K chars) while the proxy did the routing.
 
 ## Example run
@@ -248,6 +252,7 @@ Environment (`MNESTIC_*`) or CLI flags:
 | `MNESTIC_MODEL` | `mock` | PydanticAI model string, e.g. `anthropic:claude-sonnet-4-5`, `openai:gpt-4o-mini`, `openai-chat:<id>` for OpenAI-compatible proxies (+ `OPENAI_BASE_URL`) |
 | `MNESTIC_OUTPUT_MODE` | `tool` | `tool` \| `native` \| `prompted` structured-output mode |
 | `MNESTIC_MODEL_RETRIES` | `2` | in-step output validation retries |
+| `MNESTIC_MODEL_SETTINGS` | `{}` | JSON merged into PydanticAI `ModelSettings`, e.g. `{"openai_reasoning_effort":"low","temperature":0}` (llama.cpp/Gemma: controls thinking) |
 | `MNESTIC_MODEL_TIMEOUT` | `300` | wall-clock seconds per reasoning step (also passed as the provider request timeout); a hung provider becomes a bounded model-error observation and is retried |
 | `MNESTIC_SHELL_MODE` | `allowlist` | `disabled` \| `allowlist` \| `unrestricted` |
 | `MNESTIC_LOG_LEVEL` / `MNESTIC_LOG_JSON` | `INFO` / off | structured logging |

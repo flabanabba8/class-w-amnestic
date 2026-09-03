@@ -93,6 +93,10 @@ class RuntimeConfig(BaseModel):
             values["model"] = v
         if v := env.get("MNESTIC_OUTPUT_MODE"):
             values["output_mode"] = v
+        if v := env.get("MNESTIC_MODEL_SETTINGS"):
+            import json
+
+            values["model_settings"] = json.loads(v)
         if v := env.get("MNESTIC_MODEL_TIMEOUT"):
             values["model_timeout_seconds"] = float(v)
         if v := env.get("MNESTIC_MODEL_RETRIES"):

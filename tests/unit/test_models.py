@@ -113,3 +113,10 @@ def test_pruned_decision_schema_is_much_smaller_and_still_validates():
     with pytest.raises(ValueError, match="unknown patch ops"):
         decision_type_for(["nope"])
     assert "Exactly one of" not in json.dumps(AgentDecision.model_json_schema())  # class docstrings no longer in the schema
+
+
+def test_model_settings_env(monkeypatch):
+    from mnestic.config import RuntimeConfig
+
+    monkeypatch.setenv("MNESTIC_MODEL_SETTINGS", '{"openai_reasoning_effort": "low", "temperature": 0}')
+    assert RuntimeConfig.from_env().model_settings == {"openai_reasoning_effort": "low", "temperature": 0}
