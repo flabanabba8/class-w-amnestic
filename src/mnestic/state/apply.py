@@ -227,10 +227,18 @@ def _require(cond: bool, message: str, code: str = "not_found") -> None:
         raise PatchRejected(message, code=code)
 
 
-def _find[T](items: list[T], item_id: str, label: str) -> T:
+def _find[T](items: list[T], item_id: str, label: str, *, state: ExecutionState | None = None) -> T:
     found = next((i for i in items if getattr(i, "id", None) == item_id), None)
     if found is None:
-        raise PatchRejected(f"{label} {item_id!r} not found", code="not_found")
+        hint = ""
+        if state is not None:
+            if state.find_fact(item_id):
+                hint = " (that id is a verified fact)"
+            elif any(r.id == item_id for r in state.rejected_hypotheses):
+                hint = " (that id is a rejected hypothesis)"
+            elif state.find_hypothesis(item_id):
+                hint = " (that id is an active hypothesis)"
+        raise PatchRejected(f"{label} {item_id!r} not found{hint}", code="not_found")
     return found
 
 
@@ -273,7 +281,7 @@ def _apply_op(
         s.verified_facts.append(fact)
         result.changes.append(f"fact added {fact.id}")
     elif isinstance(op, SupersedeFact):
-        old = _find(s.verified_facts, op.fact_id, "fact")
+        old = _find(s.verified_facts, op.fact_id, "fact", state=s)
         result.archived.append(ArchivedItem("fact", old.model_dump(mode="json"), "superseded by new statement"))
         old.statement = op.statement
         old.confidence = op.confidence
@@ -281,7 +289,7 @@ def _apply_op(
         old.updated_at = now
         result.changes.append(f"fact superseded {old.id}")
     elif isinstance(op, RemoveFact):
-        old = _find(s.verified_facts, op.fact_id, "fact")
+        old = _find(s.verified_facts, op.fact_id, "fact", state=s)
         s.verified_facts.remove(old)
         result.archived.append(ArchivedItem("fact", old.model_dump(mode="json"), op.reason))
         result.changes.append(f"fact removed {old.id}")
@@ -304,7 +312,7 @@ def _apply_op(
         s.active_hypotheses.append(hyp)
         result.changes.append(f"hypothesis added {hyp.id}")
     elif isinstance(op, UpdateHypothesis):
-        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis")
+        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis", state=s)
         if op.statement is not None:
             hyp.statement = op.statement
         if op.confidence is not None:
@@ -314,7 +322,10 @@ def _apply_op(
         hyp.updated_at = now
         result.changes.append(f"hypothesis updated {hyp.id}")
     elif isinstance(op, RejectHypothesis):
-        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis")
+        if any(r.id == op.hypothesis_id for r in s.rejected_hypotheses):
+            result.changes.append(f"hypothesis {op.hypothesis_id} already rejected (no-op)")
+            return
+        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis", state=s)
         s.active_hypotheses.remove(hyp)
         s.rejected_hypotheses.append(
             RejectedHypothesis(
@@ -327,7 +338,10 @@ def _apply_op(
         )
         result.changes.append(f"hypothesis rejected {hyp.id}")
     elif isinstance(op, PromoteHypothesis):
-        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis")
+        if s.find_fact(op.hypothesis_id):  # already promoted: idempotent (models and resumed runs retry this)
+            result.changes.append(f"hypothesis {op.hypothesis_id} already promoted (no-op)")
+            return
+        hyp = _find(s.active_hypotheses, op.hypothesis_id, "hypothesis", state=s)
         s.active_hypotheses.remove(hyp)
         s.verified_facts.append(
             VerifiedFact(

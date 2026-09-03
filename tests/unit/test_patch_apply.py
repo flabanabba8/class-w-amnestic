@@ -155,3 +155,19 @@ def test_every_removal_op_archives_what_it_removes(base_state: ExecutionState):
                              {"op": "clear_environment", "key": "os"}, {"op": "remove_entity", "name": "db"}))
     assert {a.kind for a in r.archived} == {"constraint", "environment", "entity"}
     assert next(a for a in r.archived if a.kind == "constraint").item == {"constraint": "no network"}
+
+
+def test_promote_and_reject_are_idempotent_and_not_found_hints(base_state: ExecutionState):
+    """Gemma re-promoted an already-promoted hypothesis three steps running (bundled with its completion)."""
+    s = apply_patch(base_state, patch(0, {"op": "add_hypothesis", "id": "h1", "statement": "x"},
+                                      {"op": "promote_hypothesis", "hypothesis_id": "h1", "evidence_event_ids": ["e"]})).state
+    r = apply_patch(s, patch(1, {"op": "promote_hypothesis", "hypothesis_id": "h1", "evidence_event_ids": ["e"]}, {"op": "set_phase", "phase": "done"}))
+    assert r.state.current_phase == "done" and "already promoted" in r.changes[0]
+    with pytest.raises(PatchRejected, match="that id is a verified fact"):
+        apply_patch(r.state, patch(2, {"op": "update_hypothesis", "hypothesis_id": "h1", "confidence": 0.1}))
+    s2 = apply_patch(base_state, patch(0, {"op": "add_hypothesis", "id": "h2", "statement": "y"},
+                                       {"op": "reject_hypothesis", "hypothesis_id": "h2", "reason": "no"})).state
+    r2 = apply_patch(s2, patch(1, {"op": "reject_hypothesis", "hypothesis_id": "h2", "reason": "again"}))
+    assert "already rejected" in r2.changes[0] and len(r2.state.rejected_hypotheses) == 1
+    with pytest.raises(PatchRejected, match="that id is a rejected hypothesis"):
+        apply_patch(r2.state, patch(2, {"op": "promote_hypothesis", "hypothesis_id": "h2", "evidence_event_ids": ["e"]}))
