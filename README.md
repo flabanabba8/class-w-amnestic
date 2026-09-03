@@ -127,6 +127,7 @@ Tested end-to-end through a local [9Router](https://9router.com/) instance (`OPE
 | `openai-chat:cc/claude-haiku-4-5-20251001` | `tool` (default) | completed in 5 steps, 6 calls, ~3.7K input tokens/call, correct answer with evidence |
 | `openai-chat:groq/openai/gpt-oss-120b` | `tool` | failed: Groq's server-side tool-call validation rejects the nested `AgentDecision` schema |
 | `openai-chat:groq/openai/gpt-oss-120b` | `prompted` (`MNESTIC_OUTPUT_MODE=prompted`) | completed in 5 steps, 6 calls (3 in-step retries), correct answer |
+| `openai-chat:nvidia/moonshotai/kimi-k3` | `tool` | completed in 4 steps, 5 calls, zero retries, most precise answer (file + line) |
 
 Rule of thumb: frontier models → `tool`; smaller/open models or strict proxies → `prompted`. Either way the
 per-step context stayed flat (~7.5K chars) while the proxy did the routing.
