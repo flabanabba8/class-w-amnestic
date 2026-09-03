@@ -215,3 +215,23 @@ async def test_identical_actions_with_new_observations_are_not_a_loop(make_runti
 
     out = await make_runtime(script, tools=reg, cfg=cfg).start(skill, "count ticks")
     assert out.status == RunStatus.COMPLETED and store.get_state(out.run_id).counters.errors == 0
+
+
+async def test_feedback_observation_repeats_the_original_input(make_runtime, store, simple_skill, config):
+    """A rejected decision must not make the model lose the input it was answering (found on the warehouse benchmark)."""
+    seen: list[str] = []
+    bad = [{"op": "remove_fact", "fact_id": "nope", "reason": "x"}]
+
+    def script(ctx):
+        kind, ev, text = obs_info(ctx)
+        seen.append(kind)
+        if kind == "runtime":
+            assert "ORDER #7: ship 1 gear" in text and "repeated here" in text, text
+        if seen.count("runtime") < 2:  # fail on the task input and on the first feedback; succeed on the second feedback
+            return decision(ctx, bad, action={"kind": "continue"})
+        return complete(ctx)
+
+    cfg = config.model_copy(update={"max_decision_failures": 5})
+    out = await make_runtime(script, cfg=cfg).start(simple_skill, "ORDER #7: ship 1 gear — choose a shelf")
+    assert out.status == RunStatus.COMPLETED, out
+    assert seen == ["task_input", "runtime", "runtime"]

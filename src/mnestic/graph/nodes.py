@@ -372,12 +372,21 @@ class HandleFailure(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
             d.store.update_step(s.run_id, s.step, phase="failed")
         if s.consecutive_failures >= d.config.max_decision_failures or s.loop_trips >= d.config.max_decision_failures:
             return Finalize(reason="too_many_failures", status=RunStatus.FAILED, summary=self.reason)
-        # Bounded feedback: the model sees ONLY this reason plus current state next step (no transcript).
+        # Bounded feedback: the model sees ONLY this reason plus current state next step (no transcript). The observation
+        # it was responding to is repeated, because it exists nowhere else — replacing it would make the model guess.
+        original = s.observation
+        repeat = ""
+        if original is not None and original.kind != ObservationKind.RUNTIME:
+            repeat = (f"\n\nThe observation you were responding to (from {original.source}, kind {original.kind.value}) is repeated here:\n"
+                      f"{original.content[: s.max_observation_chars // 2]}")
+        elif original is not None and original.data and original.data.get("original_observation"):
+            repeat = "\n\n" + str(original.data["original_observation"])[: s.max_observation_chars // 2]
         obs = _make_observation(
             s, ObservationKind.RUNTIME, "runtime",
             f"Your previous decision was not applied. Reason: {self.reason}\n"
-            f"The execution state is unchanged (version {s.execution_state.state_version}). Produce a corrected decision.",
-            data={"failure_kind": self.kind, "consecutive_failures": s.consecutive_failures},
+            f"The execution state is unchanged (version {s.execution_state.state_version}). Produce a corrected decision.{repeat}",
+            data={"failure_kind": self.kind, "consecutive_failures": s.consecutive_failures,
+                  "original_observation": repeat.strip()[:2000] if repeat else None},
         )
         return await _advance(ctx, obs, EventType.OBSERVATION, action_id=None)
 
