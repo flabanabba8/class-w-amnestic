@@ -8,19 +8,23 @@ Simulated task: 1001 steps, each producing a tool observation of 400 chars. Scri
 
 | step | SKILL.state context | ≈tokens | state section | ReAct-style transcript |
 |---:|---:|---:|---:|---:|
-| 1 | 2,878 | 720 | 989 | 1,972 |
-| 10 | 3,338 | 835 | 1,029 | 7,192 |
-| 50 | 3,346 | 837 | 1,035 | 30,392 |
-| 100 | 3,348 | 837 | 1,037 | 59,392 |
-| 250 | 3,356 | 839 | 1,043 | 146,392 |
-| 500 | 3,356 | 839 | 1,043 | 291,392 |
-| 750 | 3,358 | 840 | 1,045 | 436,392 |
-| 1000 | 3,358 | 840 | 1,045 | 581,392 |
+| 1 | 2,960 | 740 | 603 | 2,316 |
+| 10 | 3,513 | 879 | 678 | 7,536 |
+| 50 | 3,519 | 880 | 681 | 30,736 |
+| 100 | 3,521 | 881 | 683 | 59,736 |
+| 250 | 3,527 | 882 | 686 | 146,736 |
+| 500 | 3,527 | 882 | 686 | 291,736 |
+| 750 | 3,529 | 883 | 688 | 436,736 |
+| 1000 | 3,529 | 883 | 688 | 581,736 |
+
+## What the provider actually receives
+
+The context above is *our* text. Every call also carries the structured-output schema (`AgentDecision`), sent as a tool definition: **3,559 chars** with this skill's `allowed_ops` (full 30-op schema: 14,597 chars). Some proxy routes add their own system prompt on top. Measure per-call tokens at the provider, not at the context builder — see docs/WAREHOUSE_BENCHMARK.md.
 
 ## Summary
 
-- SKILL.state: first=2,878 min=2,878 max=3,364 mean=3,355.5 last=3,364 chars; cumulative=3,358,904 chars over 1001 steps.
-- ReAct-style baseline: first=1,972 last=581,972 chars; cumulative=292,263,972 chars (87.0× SKILL.state).
+- SKILL.state: first=2,960 min=2,960 max=3,533 mean=3,526.6 last=3,533 chars; cumulative=3,530,165 chars over 1001 steps.
+- ReAct-style baseline: first=2,316 last=582,316 chars; cumulative=292,608,316 chars (82.9× SKILL.state).
 - Leak check (marker from an older observation found in a later context): NONE.
 - Bounded (late-run context variation ≤5% and no leaks): **yes**.
 - Archive events written: 9,008 (the archive grows linearly; the prompt does not).

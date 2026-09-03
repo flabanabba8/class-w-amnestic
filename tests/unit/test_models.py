@@ -49,9 +49,12 @@ def test_oversized_statement_rejected():
 
 def test_model_view_drops_runtime_noise():
     view = _state(verified_facts=[VerifiedFact(id="f", statement="a", evidence_event_ids=["e"])]).model_view()
-    assert "created_at" not in view and "metadata" not in view
-    assert "created_at" not in view["verified_facts"][0]
-    assert view["state_version"] == 0
+    assert "created_at" not in view and "metadata" not in view and "run_id" not in view and "counters" not in view
+    assert "created_at" not in view["verified_facts"][0] and "confidence" not in view["verified_facts"][0]  # 1.0 is implied
+    assert "environment" not in view and "last_observation_summary" not in view  # empty -> omitted
+    assert view["progress"] == {"steps_completed": 0, "max_steps": 200}
+    assert list(view)[-1] == "state_version" and view["state_version"] == 0
+    assert view["active_hypotheses"] == []  # lists always present
 
 
 def test_decision_requires_exactly_one_control():
@@ -114,6 +117,11 @@ def test_pruned_decision_schema_is_much_smaller_and_still_validates():
                                   "action": {"kind": "continue"}})
     with pytest.raises(ValueError, match="unknown patch ops"):
         decision_type_for(["nope"])
+    from mnestic.models.decision import DEFAULT_ALLOWED_OPS, resolve_allowed_ops
+
+    assert resolve_allowed_ops(None) == DEFAULT_ALLOWED_OPS and len(resolve_allowed_ops(["*"])) == 29
+    default = len(json.dumps(decision_type_for(None).model_json_schema(), separators=(",", ":")))
+    assert default < full * 0.75  # the default a skill gets is itself much smaller than "everything"
     assert "Exactly one of" not in json.dumps(AgentDecision.model_json_schema())  # class docstrings no longer in the schema
 
 

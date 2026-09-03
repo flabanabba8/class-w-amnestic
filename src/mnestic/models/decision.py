@@ -51,14 +51,42 @@ class AgentDecision(StrictModel):
         return self
 
 
+DEFAULT_ALLOWED_OPS: list[str] = [
+    "set_phase", "set_plan", "update_plan_step",
+    "add_fact", "supersede_fact", "remove_fact",
+    "add_hypothesis", "reject_hypothesis", "promote_hypothesis",
+    "add_artifact", "add_blocker", "remove_blocker",
+    "set_environment", "set_entity", "remove_entity",
+    "set_observation_summary",
+]
+"""The op subset a skill gets when it declares nothing: enough for facts/hypotheses/plan/phase/entities. Everything
+else (questions, pending actions, constraints, metadata, status, objective, archive_facts, update_hypothesis,
+remove_artifact, clear_environment) is opt-in through ``allowed_ops``; ``["*"]`` means all ops."""
+
+
+def resolve_allowed_ops(allowed_ops: list[str] | None) -> list[str]:
+    from typing import get_args
+
+    from mnestic.models.patch import PatchOp
+
+    all_ops = [m.model_fields["op"].default for m in get_args(get_args(PatchOp)[0])]
+    if allowed_ops is None:
+        return list(DEFAULT_ALLOWED_OPS)
+    if allowed_ops == ["*"]:
+        return all_ops
+    unknown = set(allowed_ops) - set(all_ops)
+    if unknown:
+        raise ValueError(f"unknown patch ops in allowed_ops: {sorted(unknown)}")
+    return list(allowed_ops)
+
+
 def decision_type_for(allowed_ops: list[str] | None) -> type[AgentDecision]:
-    """Build an AgentDecision subclass whose StatePatch accepts only ``allowed_ops``.
+    """Build an AgentDecision subclass whose StatePatch accepts only the resolved ``allowed_ops``.
 
     The runtime still validates and applies with the full ``StatePatch``; this only shrinks the output schema the model
-    is shown (the 30-op union is ~18K chars; a three-op skill needs a fraction of that).
+    is shown (the full union is ~16K chars as sent; a five-op skill needs a third of that).
     """
-    if not allowed_ops:
-        return AgentDecision
+    allowed_ops = resolve_allowed_ops(allowed_ops)
     from typing import Annotated, Any, Union, get_args
 
     from pydantic import Field as _Field
@@ -67,9 +95,6 @@ def decision_type_for(allowed_ops: list[str] | None) -> type[AgentDecision]:
     from mnestic.models.patch import PatchOp, StatePatch
 
     members = [m for m in get_args(get_args(PatchOp)[0]) if m.model_fields["op"].default in set(allowed_ops)]
-    unknown = set(allowed_ops) - {m.model_fields["op"].default for m in members}
-    if unknown:
-        raise ValueError(f"unknown patch ops in allowed_ops: {sorted(unknown)}")
     op_union: Any = Annotated[Union[tuple(members)], _Field(discriminator="op")]  # noqa: UP007 - runtime union construction  # type: ignore[valid-type]
     patch_cls = create_model("StatePatch", __base__=StatePatch, ops=(list[op_union], _Field(default_factory=list, max_length=50)))  # type: ignore[valid-type]
     return create_model("AgentDecision", __base__=AgentDecision, state_patch=(patch_cls, ...))  # type: ignore[call-overload,no-any-return]

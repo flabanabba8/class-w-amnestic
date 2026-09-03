@@ -32,7 +32,7 @@ class SkillSpecification(BaseModel):
     allowed_ops: list[str] | None = Field(
         default=None,
         description="Patch ops this skill uses (e.g. ['set_entity','set_environment','set_observation_summary']). "
-        "Prunes the output schema sent to the model; None = all ops.",
+        "Prunes the output schema sent to the model; None = the default core set, ['*'] = every op.",
     )
     reasoner_script: str | None = Field(
         default=None,

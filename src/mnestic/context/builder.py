@@ -85,12 +85,14 @@ def render_op_reference(allowed_ops: list[str] | None) -> str:
     sees about ops now that field descriptions are kept out of the per-call schema."""
     from typing import get_args
 
+    from mnestic.models.decision import resolve_allowed_ops
     from mnestic.models.patch import PatchOp
 
+    allowed = set(resolve_allowed_ops(allowed_ops))
     lines = []
     for member in get_args(get_args(PatchOp)[0]):
         name = member.model_fields["op"].default
-        if allowed_ops is not None and name not in allowed_ops:
+        if name not in allowed:
             continue
         fields = []
         for fname, f in member.model_fields.items():

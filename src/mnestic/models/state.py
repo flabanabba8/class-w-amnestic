@@ -219,15 +219,32 @@ class ExecutionState(StrictModel):
         return next((h for h in self.active_hypotheses if h.id == hypothesis_id), None)
 
     def model_view(self) -> dict[str, Any]:
-        """The representation shown to the model: stable key order, no runtime-only noise."""
-        data = self.model_dump(mode="json", exclude={"created_at", "updated_at", "metadata"})
-        # Timestamps on nested items are not decision-relevant; drop to keep the state compact.
+        """The representation shown to the model: stable key order, no runtime-only noise.
+
+        Identity fields (run/skill ids) are in the skill section already; timestamps, metadata and counters are runtime
+        bookkeeping. Lists are always present (scripts index them) but items carry only decision-relevant fields.
+        """
+        data = self.model_dump(
+            mode="json",
+            exclude={"created_at", "updated_at", "metadata", "run_id", "skill_id", "skill_version", "state_schema_version", "counters", "budgets"},
+        )
         for key in ("verified_facts", "active_hypotheses", "artifacts", "pending_actions", "blockers", "unresolved_questions"):
             for item in data.get(key, []):
                 item.pop("created_at", None)
                 item.pop("updated_at", None)
+                if item.get("confidence") == 1.0:
+                    item.pop("confidence")
+                if item.get("originating_event_id") is None:
+                    item.pop("originating_event_id", None)
         for item in data.get("rejected_hypotheses", []):
             item.pop("rejected_at", None)
+        if not data.get("environment", {}).get("properties"):
+            data.pop("environment", None)
+        if data.get("last_observation_summary") is None:
+            data.pop("last_observation_summary", None)
+        data["progress"] = {"steps_completed": self.counters.steps_completed, "max_steps": self.budgets.max_steps}
+        # keep state_version last so it is easy to find
+        data["state_version"] = data.pop("state_version")
         return data
 
 

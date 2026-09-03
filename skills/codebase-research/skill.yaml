@@ -21,7 +21,6 @@ constraints:
 phases: [survey, investigate, synthesize, report, done]
 initial_phase: survey
 default_max_steps: 60
-allowed_ops: [set_phase, set_plan, update_plan_step, add_fact, supersede_fact, remove_fact, add_hypothesis, update_hypothesis,
-              reject_hypothesis, promote_hypothesis, add_artifact, add_blocker, remove_blocker, add_question, resolve_question,
-              set_entity, set_observation_summary]
+allowed_ops: [set_phase, set_plan, update_plan_step, add_fact, supersede_fact, remove_fact, add_hypothesis,
+              reject_hypothesis, promote_hypothesis, add_artifact, add_blocker, remove_blocker, set_entity, set_observation_summary]
 reasoner_script: mnestic.benchmarks.scripts:codebase_research_script

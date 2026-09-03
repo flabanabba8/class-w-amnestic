@@ -69,7 +69,7 @@ async def test_state_limits_reject_then_spill(make_runtime, store, simple_skill,
 
 
 async def test_state_too_large_feedback(make_runtime, store, simple_skill, config):
-    cfg = config.model_copy(update={"state_limits": StateLimits(max_state_bytes=2500)})
+    cfg = config.model_copy(update={"state_limits": StateLimits(max_state_bytes=2000)})
 
     def script(ctx):
         kind, ev, text = obs_info(ctx)
