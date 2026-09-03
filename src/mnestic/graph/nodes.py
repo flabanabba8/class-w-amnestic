@@ -357,12 +357,14 @@ class HandleFailure(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
         if self.kind == "patch":
             s.execution_state.counters.patches_rejected += 1
         s.consecutive_failures += 1
+        if self.kind == "loop":
+            s.loop_trips += 1
         d.log.warning("step failure", step=s.step, kind=self.kind, reason=self.reason[:200])
         with d.store.transaction():
             d.store.save_error(s.run_id, s.step, self.kind, self.reason)
             d.store.append_event(s.run_id, s.step, EventType.ERROR, f"{self.kind} failure: {self.reason[:200]}", {"kind": self.kind, "reason": self.reason})
             d.store.update_step(s.run_id, s.step, phase="failed")
-        if s.consecutive_failures >= d.config.max_decision_failures:
+        if s.consecutive_failures >= d.config.max_decision_failures or s.loop_trips >= d.config.max_decision_failures:
             return Finalize(reason="too_many_failures", status=RunStatus.FAILED, summary=self.reason)
         # Bounded feedback: the model sees ONLY this reason plus current state next step (no transcript).
         obs = _make_observation(

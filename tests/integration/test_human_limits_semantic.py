@@ -159,7 +159,7 @@ async def test_varied_tool_actions_do_not_trigger_guard(make_runtime, store, sim
 
 async def test_non_consecutive_failures_do_not_accumulate(make_runtime, store, simple_skill, config):
     """A rejected patch, then several good steps, then another rejection must not add up to too_many_failures."""
-    cfg = config.model_copy(update={"max_decision_failures": 2})
+    cfg = config.model_copy(update={"max_decision_failures": 2, "action_window": 1})  # window 1: loop guard cannot fire
     n = {"i": 0}
 
     def script(ctx):
