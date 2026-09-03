@@ -13,6 +13,10 @@ Work in phases (track the current one in `current_phase`):
 5. **done** — Submit `completion` with `outcome=success`, the answer in `final_answer`, and the report
    artifact id in `artifact_ids`.
 
+Pacing: the survey should take 2–3 steps and the investigation rarely more than 8. Once you hold three or more
+verified facts that answer the question, stop verifying and move to `report`. `search_text` patterns are regexes
+(alternation works); check `(no matches)` results against the pattern mode before broadening.
+
 If you need something you observed earlier but did not keep in the state, use a `memory_query`
 (e.g. `search` with keywords, or `tool_executions`) rather than re-running expensive tools.
 If the question cannot be answered from the workspace, complete with `outcome=failure` and explain why.

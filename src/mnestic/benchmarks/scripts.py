@@ -86,7 +86,7 @@ def codebase_research_script(context: ModelContext) -> AgentDecision:
                 ]},
                 action={"kind": "tool", "tool_name": "list_directory", "arguments": {"path": "."}, "purpose": "survey"},
             )
-        entries = [line.split()[-1] for line in obs.splitlines() if line and line[0] in "dfl"]
+        entries = [line.split()[-1] for line in obs.splitlines() if re.match(r"^[dfl] +\d+ ", line)]
         return AgentDecision(
             rationale_summary="Recorded layout; searching for the term.",
             state_patch={"expected_state_version": v, "ops": [
@@ -100,7 +100,7 @@ def codebase_research_script(context: ModelContext) -> AgentDecision:
 
     if phase == "investigate":
         hyp_open = "hyp_term" in {h["id"] for h in state["active_hypotheses"]}
-        if hyp_open and (obs.startswith("(no matches)") or obs.startswith("TOOL FAILED")):
+        if hyp_open and (obs.rstrip().endswith("(no matches)") or obs.startswith("TOOL FAILED")):
             return AgentDecision(
                 rationale_summary="Term not found; cannot answer.",
                 state_patch={"expected_state_version": v, "ops": [
@@ -110,9 +110,9 @@ def codebase_research_script(context: ModelContext) -> AgentDecision:
                 completion={"outcome": "failure", "summary": f"'{term}' does not occur in the workspace", "final_answer": "not found"},
             )
         if hyp_open:
-            first = obs.splitlines()[0]
-            path = first.split(":", 1)[0]
-            count = len([line for line in obs.splitlines() if ":" in line])
+            hits = [line for line in obs.splitlines() if re.match(r"^[^:\s]+:\d+:", line)]
+            path = hits[0].split(":", 1)[0]
+            count = len(hits)
             return AgentDecision(
                 rationale_summary="Term found; reading the first matching file.",
                 state_patch={"expected_state_version": v, "ops": [

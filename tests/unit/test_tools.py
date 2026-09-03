@@ -44,7 +44,15 @@ async def test_filesystem_tools(ctx: ToolContext, workspace: Path):
     r = await reg.execute("read_text_file", {"path": "src/app.py", "max_lines": 1}, ctx)
     assert r.ok and "PORT = 8000" in r.output and r.data["total_lines"] == 3
     r = await reg.execute("search_text", {"pattern": "server_port", "path": "."}, ctx)
-    assert r.ok and "src/app.py:2" in r.output
+    assert r.ok and "src/app.py:2" in r.output and r.output.startswith("search regex pattern")
+    r = await reg.execute("search_text", {"pattern": "server_port|DEBUG", "path": "src"}, ctx)  # regex by default
+    assert r.ok and r.data["matches"] == 2
+    r = await reg.execute("search_text", {"pattern": "PORT = 8000", "path": ".", "regex": False}, ctx)
+    assert r.ok and r.data["matches"] == 1 and r.data["mode"] == "literal"
+    r = await reg.execute("search_text", {"pattern": "PORT = (8000", "path": "."}, ctx)  # invalid regex -> literal fallback, not an error
+    assert r.ok and "not a valid regex" in r.data["mode"]
+    r = await reg.execute("list_directory", {"path": "src"}, ctx)
+    assert r.output.startswith("directory 'src' (1 entries") and r.data["path"] == "src"
     r = await reg.execute("write_workspace_file", {"path": "out/notes.md", "content": "hi"}, ctx)
     assert r.ok and (workspace / "out" / "notes.md").read_text() == "hi" and r.artifact.locator == "out/notes.md"
 

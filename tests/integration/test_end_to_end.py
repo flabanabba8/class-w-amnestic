@@ -47,3 +47,14 @@ async def test_missing_required_tool_is_rejected_at_start(make_runtime, simple_s
     rt = make_runtime(lambda c: None, tools=ToolRegistry())
     with pytest.raises(ValueError, match="requires unavailable tools"):
         await rt.start(simple_skill, "x")
+
+
+async def test_tool_result_observation_records_request(make_runtime, registry, store):
+    from mnestic.benchmarks.scripts import codebase_research_script
+
+    out = await make_runtime(codebase_research_script).start(registry.get("codebase-research"), "Where is `PORT` configured?")
+    obs = [o for o in store.list_observations(out.run_id) if o.kind.value == "tool_result"]
+    assert obs and all(o.data["request"]["tool"] == o.source for o in obs)
+    assert obs[0].data["request"]["arguments"] == {"path": "."}
+    ctx = store.get_model_calls(out.run_id, step=1)[0]
+    assert 'request=' in __import__("json").loads(ctx["context_json"])["sections"]["latest_observation"].split("\n", 1)[0]

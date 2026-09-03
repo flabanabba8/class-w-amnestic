@@ -64,18 +64,23 @@ class ListDirectoryTool(Tool):
             size = p.stat().st_size if p.is_file() else 0
             lines.append(f"{kind} {size:>10} {p.name}")
         note = f"\n… {len(entries) - args.max_entries} more entries" if len(entries) > args.max_entries else ""
-        return ToolResult(ok=True, output="\n".join(lines) + note, data={"count": len(entries)})
+        rel = str(path.relative_to(ctx.workspace_root.resolve())) if not ctx.config.allow_workspace_escape else str(path)
+        header = f"directory {rel!r} ({len(entries)} entries; columns: kind size name):"
+        return ToolResult(ok=True, output=header + "\n" + ("\n".join(lines) or "(empty)") + note, data={"path": rel, "count": len(entries)})
 
 
 class SearchTextTool(Tool):
     name: ClassVar[str] = "search_text"
-    description: ClassVar[str] = "Search files under a workspace directory for a regex/plain pattern; returns file:line matches."
+    description: ClassVar[str] = (
+        "Search files under a workspace directory; returns file:line matches. The pattern is a Python regex by default "
+        "(alternation a|b works); set regex=false for a literal string."
+    )
 
     class Args(BaseModel):
         model_config = ConfigDict(extra="forbid")
-        pattern: str = Field(min_length=1, max_length=500)
-        path: str = Field(default=".")
-        regex: bool = False
+        pattern: str = Field(min_length=1, max_length=500, description="Regex (default) or literal text when regex=false")
+        path: str = Field(default=".", description="File or directory to search, relative to the workspace root")
+        regex: bool = Field(default=True, description="Interpret pattern as a regex (default); false = literal substring")
         glob: str = Field(default="*", description="Filename glob filter, e.g. '*.py'")
         max_results: int = Field(default=100, ge=1, le=1000)
 
@@ -83,10 +88,11 @@ class SearchTextTool(Tool):
         root = ctx.resolve_path(args.path)
         if not root.exists():
             raise ToolError(f"path does not exist: {args.path}")
+        mode = "regex" if args.regex else "literal"
         try:
             rx = re.compile(args.pattern if args.regex else re.escape(args.pattern))
-        except re.error as exc:
-            raise ToolError(f"invalid regex: {exc}") from None
+        except re.error:
+            rx, mode = re.compile(re.escape(args.pattern)), "literal (pattern was not a valid regex)"
         results: list[str] = []
         files = [root] if root.is_file() else sorted(p for p in root.rglob(args.glob) if p.is_file())
         scanned = 0
@@ -109,8 +115,9 @@ class SearchTextTool(Tool):
                 continue
             if len(results) >= args.max_results:
                 break
-        output, _ = truncate_output("\n".join(results) or "(no matches)", 50_000)
-        return ToolResult(ok=True, output=output, data={"matches": len(results), "files_scanned": scanned, "capped": len(results) >= args.max_results})
+        header = f"search {mode} pattern {args.pattern!r} under {args.path!r} (glob {args.glob}): {len(results)} match(es) in {scanned} file(s) scanned"
+        output, _ = truncate_output(header + "\n" + ("\n".join(results) or "(no matches)"), 50_000)
+        return ToolResult(ok=True, output=output, data={"matches": len(results), "files_scanned": scanned, "mode": mode, "capped": len(results) >= args.max_results})
 
 
 def _looks_binary(path: Path) -> bool:

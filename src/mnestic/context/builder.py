@@ -74,6 +74,8 @@ Respond with a single structured AgentDecision:
   completion (when the completion criteria are met or the task is impossible). Finishing is ONLY done through
   `completion`; never set status to completed/failed in the patch (the runtime rejects it).
 - rationale_summary: one or two short externally-safe sentences. Do not include step-by-step reasoning.
+Exactly one tool call per step (there is no parallel tool call); its result is the next step's observation.
+Observations are labelled with the request that produced them — read that label before interpreting the content.
 Keep the state small: reference large content via artifacts and event ids instead of copying it in.
 """
 
@@ -175,7 +177,11 @@ class ContextBuilder:
         attrs = f'id="{obs.id}" event_id="{obs.event_id or ""}" step="{obs.step}" kind="{obs.kind.value}" source="{obs.source}"'
         if obs.truncated:
             attrs += f' truncated="true" full_length="{obs.full_length}"'
-        data = f"\n<data>{json.dumps(obs.data, separators=(',', ':'), ensure_ascii=False)}</data>" if obs.data else ""
+        payload = dict(obs.data or {})
+        request = payload.pop("request", None)
+        if request:
+            attrs += f" request={json.dumps(json.dumps(request, separators=(',', ':'), ensure_ascii=False))}"
+        data = f"\n<data>{json.dumps(payload, separators=(',', ':'), ensure_ascii=False)}</data>" if payload else ""
         return f"<{SECTION_OBSERVATION} {attrs}>\n{obs.content}{data}\n</{SECTION_OBSERVATION}>"
 
     def render_evidence(self, results: list[MemoryResult]) -> str:

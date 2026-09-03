@@ -85,3 +85,11 @@ def test_skill_specification_is_frozen_and_hash_stable():
     assert a.content_hash == b.content_hash != c.content_hash
     with pytest.raises(ValidationError):
         a.instructions = "mutated"  # type: ignore[misc]
+
+
+def test_model_timeout_config(monkeypatch):
+    from mnestic.config import RuntimeConfig
+
+    assert RuntimeConfig().model_timeout_seconds == 300.0
+    monkeypatch.setenv("MNESTIC_MODEL_TIMEOUT", "45")
+    assert RuntimeConfig.from_env().model_timeout_seconds == 45.0

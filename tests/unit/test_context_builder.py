@@ -100,3 +100,13 @@ def test_truncated_observation_is_flagged(simple_skill: SkillSpecification, base
     obs = Observation(run_id="run_test", step=1, kind=ObservationKind.TOOL_RESULT, source="t", content="short", truncated=True, full_length=99999, event_id="evt_big")
     ctx = ContextBuilder().build(simple_skill, base_state, obs)
     assert 'truncated="true"' in ctx.sections[SECTION_OBSERVATION] and 'full_length="99999"' in ctx.sections[SECTION_OBSERVATION]
+
+
+def test_tool_observation_header_carries_the_request(simple_skill: SkillSpecification, base_state: ExecutionState):
+    """A stateless step cannot know what `d 0 mnestic` is a listing *of* unless the observation says so."""
+    obs = Observation(run_id="run_test", step=2, kind=ObservationKind.TOOL_RESULT, source="list_directory", content="d 0 mnestic",
+                      data={"count": 1, "ok": True, "request": {"tool": "list_directory", "arguments": {"path": "src"}}})
+    section = ContextBuilder().build(simple_skill, base_state, obs).sections[SECTION_OBSERVATION]
+    header = section.split("\n", 1)[0]
+    assert 'request=' in header and '\\"path\\":\\"src\\"' in header
+    assert "<data>" in section and "request" not in section.split("<data>", 1)[1]  # not duplicated in <data>

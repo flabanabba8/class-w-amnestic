@@ -64,6 +64,7 @@ class RuntimeConfig(BaseModel):
     output_mode: Literal["tool", "native", "prompted"] = "tool"
     model_retries: int = Field(default=2, ge=0, le=10)
     model_settings: dict[str, Any] = Field(default_factory=dict, description="Passed to PydanticAI ModelSettings")
+    model_timeout_seconds: float = Field(default=300.0, gt=0, description="Per model request timeout; a hung provider becomes a bounded model-error observation")
     max_observation_chars: int = Field(default=6000, ge=200)
     max_retrieved_chars: int = Field(default=8000, ge=200)
     max_retrieved_excerpt_chars: int = Field(default=1200, ge=100)
@@ -92,6 +93,8 @@ class RuntimeConfig(BaseModel):
             values["model"] = v
         if v := env.get("MNESTIC_OUTPUT_MODE"):
             values["output_mode"] = v
+        if v := env.get("MNESTIC_MODEL_TIMEOUT"):
+            values["model_timeout_seconds"] = float(v)
         if v := env.get("MNESTIC_MODEL_RETRIES"):
             values["model_retries"] = int(v)
         if v := env.get("MNESTIC_SHELL_MODE"):

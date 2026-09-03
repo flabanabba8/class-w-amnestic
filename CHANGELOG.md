@@ -2,6 +2,25 @@
 
 *Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
 
+## Unreleased
+
+Found by running `codebase-research` on this repository with four models through 9Router
+(Kimi K3, Sonnet 5, Haiku 4.5, Codex gpt-5.6-luna) and reading the archived traces:
+
+- Tool-result observations now carry the request that produced them (`request={tool, arguments}`),
+  rendered in the `<latest_observation>` header; `list_directory` and `search_text` outputs are
+  labelled with their target/pattern/mode. A stateless step must be able to interpret an
+  observation without a previous turn (a mislabelled listing caused a 20-step loop).
+- `search_text` treats patterns as regex by default; invalid regex falls back to literal.
+- Sliding-window repeated-action loop guard (`max_repeated_actions` within `action_window`);
+  loop trips fail the run independently of the (now correctly resetting) failure streak.
+- Output contract: one tool call per step; finish only via `completion`; clearer rejection
+  message when a patch tries to set a terminal status.
+- `MNESTIC_MODEL_TIMEOUT` (default 300 s) per model request.
+- `codebase-research` skill: pacing guidance.
+- Result: zero wasted tool calls for all four models; Kimi 12→9 steps, 141K→87K tokens;
+  Luna never-completed → 14 clean steps.
+
 ## 0.1.0 — 2026-09-03
 
 Initial release of Class-W Mnestic, the SKILL.state runtime.

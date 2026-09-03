@@ -319,6 +319,7 @@ class CaptureObservation(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
                 s.execution_state.counters.errors += 1
         data = dict(result.data or {})
         data["ok"] = result.ok
+        data["request"] = {"tool": action.tool_name, "arguments": action.arguments}  # a stateless step must see what was asked
         if result.artifact is not None:
             data["artifact"] = {"locator": result.artifact.locator, "kind": result.artifact.kind}
         obs = _make_observation(s, ObservationKind.TOOL_RESULT, action.tool_name, full, data=data, ref_event_id=ev_id)
