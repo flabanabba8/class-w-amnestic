@@ -93,3 +93,23 @@ def test_model_timeout_config(monkeypatch):
     assert RuntimeConfig().model_timeout_seconds == 300.0
     monkeypatch.setenv("MNESTIC_MODEL_TIMEOUT", "45")
     assert RuntimeConfig.from_env().model_timeout_seconds == 45.0
+
+
+def test_pruned_decision_schema_is_much_smaller_and_still_validates():
+    import json
+
+    from mnestic.models.decision import decision_type_for
+
+    full = len(json.dumps(AgentDecision.model_json_schema(), separators=(",", ":")))
+    small_cls = decision_type_for(["set_entity", "set_observation_summary"])
+    small = len(json.dumps(small_cls.model_json_schema(), separators=(",", ":")))
+    assert small < full / 3, (small, full)
+    d = small_cls.model_validate({"state_patch": {"expected_state_version": 0, "ops": [{"op": "set_entity", "name": "S01", "description": "empty"}]},
+                                  "action": {"kind": "continue"}})
+    assert isinstance(d, AgentDecision)
+    with pytest.raises(ValidationError):  # ops outside the subset are rejected at the schema level
+        small_cls.model_validate({"state_patch": {"expected_state_version": 0, "ops": [{"op": "add_fact", "statement": "x", "evidence_event_ids": ["e"]}]},
+                                  "action": {"kind": "continue"}})
+    with pytest.raises(ValueError, match="unknown patch ops"):
+        decision_type_for(["nope"])
+    assert "Exactly one of" not in json.dumps(AgentDecision.model_json_schema())  # class docstrings no longer in the schema

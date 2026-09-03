@@ -29,6 +29,11 @@ class SkillSpecification(BaseModel):
     phases: list[str] = Field(default_factory=list)
     initial_phase: str = "start"
     default_max_steps: int = Field(default=200, ge=1, le=100_000)
+    allowed_ops: list[str] | None = Field(
+        default=None,
+        description="Patch ops this skill uses (e.g. ['set_entity','set_environment','set_observation_summary']). "
+        "Prunes the output schema sent to the model; None = all ops.",
+    )
     reasoner_script: str | None = Field(
         default=None,
         description="Optional dotted path to a scripted reasoner used with --model mock (deterministic skills).",

@@ -49,3 +49,27 @@ class AgentDecision(StrictModel):
                 f"(got {set_fields or 'none'})"
             )
         return self
+
+
+def decision_type_for(allowed_ops: list[str] | None) -> type[AgentDecision]:
+    """Build an AgentDecision subclass whose StatePatch accepts only ``allowed_ops``.
+
+    The runtime still validates and applies with the full ``StatePatch``; this only shrinks the output schema the model
+    is shown (the 30-op union is ~18K chars; a three-op skill needs a fraction of that).
+    """
+    if not allowed_ops:
+        return AgentDecision
+    from typing import Annotated, Any, Union, get_args
+
+    from pydantic import Field as _Field
+    from pydantic import create_model
+
+    from mnestic.models.patch import PatchOp, StatePatch
+
+    members = [m for m in get_args(get_args(PatchOp)[0]) if m.model_fields["op"].default in set(allowed_ops)]
+    unknown = set(allowed_ops) - {m.model_fields["op"].default for m in members}
+    if unknown:
+        raise ValueError(f"unknown patch ops in allowed_ops: {sorted(unknown)}")
+    op_union: Any = Annotated[Union[tuple(members)], _Field(discriminator="op")]  # noqa: UP007 - runtime union construction  # type: ignore[valid-type]
+    patch_cls = create_model("StatePatch", __base__=StatePatch, ops=(list[op_union], _Field(default_factory=list, max_length=50)))  # type: ignore[valid-type]
+    return create_model("AgentDecision", __base__=AgentDecision, state_patch=(patch_cls, ...))  # type: ignore[call-overload,no-any-return]

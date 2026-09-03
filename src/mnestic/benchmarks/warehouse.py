@@ -183,6 +183,7 @@ WAREHOUSE_SKILL = SkillSpecification(
         "state. When the observation says ALL ORDERS DONE, submit completion with outcome=success."
     ),
     completion_criteria=["all orders processed"], phases=["operating", "done"], initial_phase="operating", default_max_steps=5000,
+    allowed_ops=["set_entity", "remove_entity", "set_environment", "set_observation_summary", "set_phase"],
 )
 
 

@@ -21,7 +21,7 @@ from pydantic_ai.settings import ModelSettings
 
 from mnestic.agent.reasoner import ReasonerResult, UsageRecord
 from mnestic.context.builder import ModelContext
-from mnestic.models.decision import AgentDecision
+from mnestic.models.decision import AgentDecision, decision_type_for
 
 
 def build_model(model: str | Model) -> Model:
@@ -45,6 +45,7 @@ class PydanticAIReasoner:
         retries: int = 2,
         model_settings: dict[str, Any] | None = None,
         wall_clock_timeout: float | None = None,
+        allowed_ops: list[str] | None = None,
     ):
         """``wall_clock_timeout`` bounds the *whole* step (all in-step retries) in seconds. Provider/httpx timeouts
         are per-read and do not fire when a proxy keeps the connection alive, so this is enforced with
@@ -54,13 +55,15 @@ class PydanticAIReasoner:
         self.model_name = getattr(self.model, "model_name", str(model))
         self.retries = retries
         self.model_settings = ModelSettings(**model_settings) if model_settings else None  # type: ignore[typeddict-item]
+        decision_cls = decision_type_for(allowed_ops)
+        self.output_schema_chars = len(json.dumps(decision_cls.model_json_schema(), separators=(",", ":")))
         output_type: Any
         if output_mode == "native":
-            output_type = NativeOutput(AgentDecision, name="AgentDecision")
+            output_type = NativeOutput(decision_cls, name="AgentDecision")
         elif output_mode == "prompted":
-            output_type = PromptedOutput(AgentDecision, name="AgentDecision")
+            output_type = PromptedOutput(decision_cls, name="AgentDecision")
         else:
-            output_type = ToolOutput(AgentDecision, name="agent_decision", description="Submit the decision for this step")
+            output_type = ToolOutput(decision_cls, name="agent_decision", description="Submit the decision for this step")
         # Instructions are supplied per run (they contain the skill spec); deps carry the expected state version.
         self.agent: Agent[int, AgentDecision] = Agent(
             self.model,

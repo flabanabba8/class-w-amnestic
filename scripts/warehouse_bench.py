@@ -35,7 +35,11 @@ async def main() -> list:
         from mnestic.agent.pydantic_ai_reasoner import PydanticAIReasoner, build_model
 
         if a.mode in ("both", "skillstate"):
-            r = PydanticAIReasoner(a.model, retries=2, model_settings={"timeout": a.timeout}, wall_clock_timeout=a.timeout)
+            from mnestic.benchmarks.warehouse import WAREHOUSE_SKILL
+
+            r = PydanticAIReasoner(a.model, retries=2, model_settings={"timeout": a.timeout}, wall_clock_timeout=a.timeout,
+                                   allowed_ops=WAREHOUSE_SKILL.allowed_ops)
+            print(f"output schema: {r.output_schema_chars:,} chars", flush=True)
             results.append(await run_skillstate(r, orders=a.orders, shelves=a.shelves, seed=a.seed))
             print(render(results[-1:]), flush=True)
         if a.mode in ("both", "react"):
