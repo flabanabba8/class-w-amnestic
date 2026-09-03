@@ -1,12 +1,45 @@
 # Warehouse long-horizon benchmark
 
-*Based on the paper: Badhe, Tiwari, Chung — SKILL.state, [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) (SkillExecBench Warehouse).*
+*Based on the paper: Badhe, Tiwari, Chung — SKILL.state: Scalable Long-Horizon Agent Skills, [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) (SkillExecBench Warehouse).*
 
-One order per step; the environment never restates inventory; score = correct orders / orders.
+`src/mnestic/benchmarks/warehouse.py`, `scripts/warehouse_bench.py`. A deterministic environment hands the agent one
+order per step — *store N item* (pick a shelf with room), *ship 1 item* (pick a shelf that has it), *count item* — and
+never restates the inventory. Every order is scored against the simulation. The same environment and tool are driven
+two ways with the same model: **skillstate** (this runtime: skill + state + newest observation per call) and **react**
+(a plain PydanticAI agent whose tool loop accumulates the whole transcript).
 
+## Results — 60 orders, 12 shelves, seed 7, via 9Router
 
-## mock — 300 orders, 12 shelves, seed 7
+Token figures are what the provider reported through 9Router (`prompt_tokens` includes cache hits), which is the
+like-for-like measure; the runtime's own `input_tokens` column only counts uncached tokens.
 
-| mode | model | orders | score | correct | steps | model calls | input tok | output tok | max ctx chars | wall s | status |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| skillstate | mock | 300 | 1.00 | 300 | 300 | 301 | 407,867 | 28,778 | 5,486 | 1 | completed |
+| model | mode | score | prompt tokens (all calls) | of which cached | per call, first → last | max transcript/context |
+|---|---|---:|---:|---:|---|---:|
+| Claude Sonnet 5 | skillstate | **0.98** | 706,598 | 88% | 11.5K → 11.6K (flat) | 5,438 chars |
+| Claude Sonnet 5 | react | **0.98** | 431,579 | 97% | 2.2K → 11.9K (linear) | 132,441 chars |
+| Claude Haiku 4.5 | skillstate | 0.80 | 645,996 | 80% | ~9.5K flat | 6,940 chars |
+| Claude Haiku 4.5 | react | **1.00** | 781,952 | 94% | ~2.2K → 24K (linear) | 165,255 chars |
+| scripted optimal policy (no model) | skillstate, 300 orders | 1.00 | — | — | context 5,486 chars flat | 5,486 chars |
+
+### What this says, honestly
+
+1. **Accuracy at 60 orders: no SKILL.state advantage.** Sonnet ties (one arithmetic slip each); Haiku is *worse*
+   under SKILL.state (0.80 vs 1.00). At this horizon a 165K-char transcript still fits comfortably and the model can
+   re-derive the inventory from the full history at every step; under SKILL.state a single bad patch corrupts the
+   table with no second chance. Haiku's misses were (a) losing the pending order when a patch was rejected — a runtime
+   gap, fixed since (feedback observations now repeat the input they correct) — and (b) inventing plan-step ids.
+2. **Tokens at 60 orders: ReAct is cheaper on this route.** SKILL.state's per-call cost is *flat but high*: on the
+   Claude Code route each call carries ≈ 5.7K tokens of that route's own system prompt + ≈ 4.4K tokens of the
+   `AgentDecision` output schema + ≈ 1.4K of actual context. The ReAct transcript only overtakes that at ~order 60. And
+   prompt caching favours append-only transcripts (97% cache hits) over a mutable state block (88%).
+3. **Where the architecture wins is beyond the crossover.** ReAct grows ~160 prompt tokens per order; SKILL.state does
+   not grow. Extrapolating the measured slopes: at 300 orders ReAct ≈ 7.8M prompt tokens vs 3.5M; at 1,000 orders
+   ≈ 82M vs 11.5M — and past the context window ReAct cannot run at all. The scripted 300-order run and the Kimi
+   300-order run (below) are the empirical part of that claim.
+4. **The fixed per-call overhead is the thing to fix**, not the architecture: the output schema (4.4K tokens) is
+   pure waste for a skill that uses three patch ops, and is being slimmed (per-skill op subsets, no docstring
+   descriptions in the schema).
+
+## Kimi K3 (NVIDIA route, no prompt caching, no route prefix) — 300 orders
+
+_pending; per-call prompt tokens observed so far: ≈ 5.5K flat (1.4K context + 4.4K output schema), 0 wrong through order 14._
