@@ -68,6 +68,8 @@ class RuntimeConfig(BaseModel):
     max_retrieved_chars: int = Field(default=8000, ge=200)
     max_retrieved_excerpt_chars: int = Field(default=1200, ge=100)
     max_consecutive_continues: int = Field(default=3, ge=1)
+    max_repeated_actions: int = Field(default=3, ge=2, description="Identical tool action (same tool + arguments) seen this many times within action_window is treated as a loop")
+    action_window: int = Field(default=12, ge=2, description="Sliding window (in tool actions) for the repeated-action loop guard")
     max_decision_failures: int = Field(default=3, ge=1, description="Consecutive rejected/failed decisions before the run fails")
     allow_workspace_escape: bool = False
     state_limits: StateLimits = Field(default_factory=StateLimits)

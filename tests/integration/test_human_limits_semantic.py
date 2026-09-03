@@ -107,3 +107,51 @@ def test_semantic_memory_promotion_is_explicit_and_audited(store, simple_skill, 
     assert len(promoted) == 1 and promoted[0].payload["key"] == "machine.kernel"
     assert sem.search("kernel")[0].content == "Linux 7.0"
     assert sem.forget("machine.kernel") and not sem.list_all()
+
+
+async def test_repeated_identical_tool_action_guard(make_runtime, store, simple_skill, config):
+    """A model that keeps re-running the same tool without updating state gets bounded feedback, then fails if it persists."""
+    cfg = config.model_copy(update={"max_repeated_actions": 3, "max_decision_failures": 2})
+    seen = []
+
+    def script(ctx):
+        kind, ev, text = obs_info(ctx)
+        seen.append(kind)
+        if kind == "runtime":
+            assert "3 times within the last" in text and "memory_query" in text
+        return decision(ctx, action={"kind": "tool", "tool_name": "list_directory", "arguments": {"path": "."}})
+
+    out = await make_runtime(script, cfg=cfg).start(simple_skill, "loop forever")
+    assert out.status == RunStatus.FAILED and out.reason == "too_many_failures" and "identical tool action" in out.summary
+    assert seen.count("runtime") == 1  # feedback once; the second loop detection reaches max_decision_failures
+    execs = store.list_tool_executions(out.run_id)
+    assert len(execs) == 4  # 2 executed, guard fired on the 3rd request; 2 more, guard fired again -> failure
+    assert all(e.status == "succeeded" for e in execs)
+
+
+async def test_action_cycle_is_caught_by_window(make_runtime, store, simple_skill, config):
+    """A -> B -> C -> A -> B -> C … (Luna's failure mode) trips the guard even though no two consecutive actions match."""
+    cfg = config.model_copy(update={"max_repeated_actions": 3, "action_window": 12, "max_decision_failures": 1})
+    paths = iter([".", "src", "nope", ".", "src", "nope", ".", "src", "nope", "."])
+
+    def script(ctx):
+        return decision(ctx, action={"kind": "tool", "tool_name": "list_directory", "arguments": {"path": next(paths)}})
+
+    out = await make_runtime(script, cfg=cfg).start(simple_skill, "cycle")
+    assert out.status == RunStatus.FAILED and "3 times within the last 12" in out.summary
+    assert len(store.list_tool_executions(out.run_id)) == 6  # third '.' request (7th action) was intercepted
+
+
+async def test_varied_tool_actions_do_not_trigger_guard(make_runtime, store, simple_skill, config):
+    cfg = config.model_copy(update={"max_repeated_actions": 3, "action_window": 3})
+    paths = iter([".", "src", ".", "src"])
+
+    def script(ctx):
+        kind, ev, text = obs_info(ctx)
+        try:
+            return decision(ctx, action={"kind": "tool", "tool_name": "list_directory", "arguments": {"path": next(paths)}})
+        except StopIteration:
+            return complete(ctx)
+
+    out = await make_runtime(script, cfg=cfg).start(simple_skill, "alternate")
+    assert out.status == RunStatus.COMPLETED and store.get_state(out.run_id).counters.errors == 0

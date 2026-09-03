@@ -67,6 +67,7 @@ class RuntimeGraphState:
     last_usage: UsageRecord | None = None
     consecutive_failures: int = 0
     consecutive_continues: int = 0
+    recent_action_signatures: list[str] = field(default_factory=list)
     steps_this_invocation: int = 0
     max_steps_this_invocation: int = 10_000
     max_observation_chars: int = 6000

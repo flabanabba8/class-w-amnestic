@@ -201,6 +201,22 @@ class ApplyDecision(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
         s.action_id = action_id
         if isinstance(action, RequestHumanInput):
             return AwaitHuman()
+        if isinstance(action, ToolAction):
+            # A model that repeats the exact same tool call is not folding results into state (it has no transcript
+            # to notice with). Bounded feedback breaks the loop; the state is unchanged apart from the patch above.
+            # Cycles (A, B, C, A, B, C, …) are as common as exact repeats, so count within a sliding window.
+            signature = json.dumps({"tool": action.tool_name, "args": action.arguments}, sort_keys=True, default=str)
+            s.recent_action_signatures = [*s.recent_action_signatures, signature][-d.config.action_window :]
+            repeats = s.recent_action_signatures.count(signature)
+            if repeats >= d.config.max_repeated_actions:
+                s.recent_action_signatures.clear()
+                return HandleFailure(
+                    reason=f"the identical tool action ({action.tool_name} {json.dumps(action.arguments, default=str)[:120]}) was requested "
+                    f"{repeats} times within the last {d.config.action_window} actions. You have already seen its result; record what "
+                    "you learned in the state (facts with evidence, environment, plan, blockers) and choose a different action, or "
+                    "retrieve the earlier result with memory_query(tool_executions).",
+                    kind="loop",
+                )
         if isinstance(action, ContinueAction):
             # A 'continue' that changed nothing is spinning; one that mutated state is progress.
             s.consecutive_continues = s.consecutive_continues + 1 if patch.is_empty else 0
