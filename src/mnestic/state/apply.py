@@ -26,9 +26,11 @@ from mnestic.models.patch import (
     AddHypothesis,
     AddPendingAction,
     AddQuestion,
+    AdjustPath,
     ArchiveFacts,
     ClearEnvironment,
     CompletePendingAction,
+    DeletePath,
     PromoteHypothesis,
     RejectHypothesis,
     RemoveArtifact,
@@ -42,6 +44,7 @@ from mnestic.models.patch import (
     SetMetadata,
     SetObjective,
     SetObservationSummary,
+    SetPath,
     SetPhase,
     SetPlan,
     SetStatus,
@@ -139,6 +142,7 @@ def apply_patch(
     limits: StateLimits | None = None,
     evidence_checker: EvidenceChecker | None = None,
     now: datetime | None = None,
+    domain_schema: dict[str, Any] | None = None,
 ) -> PatchApplication:
     """Apply ``patch`` to ``state`` and return a new validated state (version + 1).
 
@@ -166,6 +170,8 @@ def apply_patch(
 
     _compact(new, result, limits, now)
     _enforce_count_limits(new, limits)
+    if domain_schema is not None:
+        _validate_domain(new.domain, domain_schema)
 
     new.state_version = state.state_version + 1
     new.updated_at = now
@@ -440,11 +446,59 @@ def _apply_op(
     elif isinstance(op, SetObservationSummary):
         s.last_observation_summary = op.summary or None
         result.changes.append("observation summary set")
+    elif isinstance(op, SetPath):
+        parent, key = _walk(s.domain, op.path, create=True)
+        parent[key] = op.value
+        result.changes.append(f"{op.path} = {json.dumps(op.value, default=str)[:60]}")
+    elif isinstance(op, AdjustPath):
+        parent, key = _walk(s.domain, op.path, create=True)
+        current = parent.get(key, 0)
+        if not isinstance(current, (int, float)) or isinstance(current, bool):
+            raise PatchRejected(f"{op.path} is not numeric (found {type(current).__name__})", code="invalid")
+        value = current + op.delta
+        if isinstance(current, int) and float(op.delta).is_integer():
+            value = int(value)
+        if value == 0 and op.drop_at_zero:
+            parent.pop(key, None)
+            result.changes.append(f"{op.path} {op.delta:+g} -> removed (0)")
+        else:
+            parent[key] = value
+            result.changes.append(f"{op.path} {op.delta:+g} -> {value}")
+    elif isinstance(op, DeletePath):
+        parent, key = _walk(s.domain, op.path, create=False)
+        _require(key in parent, f"path {op.path!r} not found")
+        result.archived.append(ArchivedItem("domain", {op.path: parent.pop(key)}, "deleted"))
+        result.changes.append(f"{op.path} deleted")
     elif isinstance(op, SetMetadata):
         s.metadata[op.key] = op.value
         result.changes.append(f"metadata {op.key} set")
     else:
         assert_never(op)
+
+
+def _walk(root: dict[str, Any], path: str, *, create: bool) -> tuple[dict[str, Any], str]:
+    """Return (parent dict, last key) for a dotted path; creates intermediate objects when ``create``."""
+    parts = path.split(".")
+    node = root
+    for part in parts[:-1]:
+        nxt = node.get(part)
+        if nxt is None:
+            if not create:
+                raise PatchRejected(f"path {path!r} not found", code="not_found")
+            nxt = node[part] = {}
+        if not isinstance(nxt, dict):
+            raise PatchRejected(f"path {path!r}: {part!r} is not an object", code="invalid")
+        node = nxt
+    return node, parts[-1]
+
+
+def _validate_domain(domain: dict[str, Any], schema: dict[str, Any]) -> None:
+    import jsonschema
+
+    try:
+        jsonschema.validate(domain, schema)
+    except jsonschema.ValidationError as exc:
+        raise PatchRejected(f"domain state violates the skill's domain_schema at {'/'.join(str(p) for p in exc.absolute_path) or '<root>'}: {exc.message}", code="domain_schema") from None
 
 
 def _compact(s: ExecutionState, result: PatchApplication, limits: StateLimits, now: datetime) -> None:

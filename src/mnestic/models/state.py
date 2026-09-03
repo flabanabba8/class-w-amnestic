@@ -182,6 +182,7 @@ class ExecutionState(StrictModel):
     blockers: list[Blocker] = Field(default_factory=list)
     unresolved_questions: list[OpenQuestion] = Field(default_factory=list)
     important_entities: dict[str, ShortText] = Field(default_factory=dict)
+    domain: dict[str, Any] = Field(default_factory=dict, description="Skill-typed domain state (validated against the skill's domain_schema); mutated with set_path/adjust_path/delete_path — the runtime does the bookkeeping")
     counters: Counters = Field(default_factory=Counters)
     budgets: Budgets = Field(default_factory=Budgets)
     last_observation_summary: str | None = Field(default=None, max_length=2000)

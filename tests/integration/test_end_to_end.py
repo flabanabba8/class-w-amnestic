@@ -78,3 +78,44 @@ async def test_initial_ops_seed_state_before_first_model_call(make_runtime, stor
     assert store.get_state_at_version(out.run_id, 0).important_entities == {}
     ev = store.list_events(out.run_id, limit=50, event_type="patch.applied")[0]
     assert ev.payload["source"] == "runtime:initial_ops"
+
+
+async def test_tool_state_effects_are_applied_by_the_runtime(make_runtime, store, simple_skill):
+    from typing import ClassVar
+
+    from pydantic import BaseModel, ConfigDict
+
+    from mnestic.tools import default_registry
+    from mnestic.tools.base import Tool, ToolContext, ToolResult
+    from tests.integration.helpers import complete, obs_info, tool
+
+    class Bump(Tool):
+        name: ClassVar[str] = "bump"
+        description: ClassVar[str] = "adds to a counter"
+
+        class Args(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+            n: int
+
+        async def run(self, args: Args, ctx: ToolContext) -> ToolResult:
+            return ToolResult(ok=True, output=f"bumped by {args.n}", state_effects=[{"op": "adjust_path", "path": "counter.total", "delta": args.n}])
+
+    reg = default_registry()
+    reg.register(Bump())
+    skill = simple_skill.model_copy(update={"required_tools": ["bump"], "domain_schema": {"type": "object", "properties": {"counter": {"type": "object"}}}})
+    seen = []
+
+    def script(ctx):
+        from mnestic.benchmarks.scripts import parse_state
+
+        kind, ev, text = obs_info(ctx)
+        seen.append(parse_state(ctx)["domain"])
+        if len(seen) < 3:
+            return tool(ctx, "bump", n=len(seen))
+        return complete(ctx)
+
+    out = await make_runtime(script, tools=reg).start(skill, "go")
+    assert out.status.value == "completed"
+    assert seen == [{}, {"counter": {"total": 1}}, {"counter": {"total": 3}}]  # the model never wrote these
+    assert "state updated by runtime" in store.list_observations(out.run_id)[1].content
+    assert any(e.payload.get("source") == "tool:bump" for e in store.list_events(out.run_id, limit=200, event_type="patch.applied"))

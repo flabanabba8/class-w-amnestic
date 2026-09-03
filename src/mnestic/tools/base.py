@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from mnestic.config import RuntimeConfig
 from mnestic.context.builder import ToolSpec
@@ -51,6 +51,7 @@ class ToolResult(BaseModel):
     error: str | None = None
     data: dict[str, Any] | None = None
     artifact: ArtifactReference | None = None
+    state_effects: list[dict[str, Any]] = Field(default_factory=list, description="Patch ops the runtime applies deterministically after this tool ran (what *happened*, as opposed to what the model decides next)")
 
 
 class Tool(ABC):

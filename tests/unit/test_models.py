@@ -119,7 +119,7 @@ def test_pruned_decision_schema_is_much_smaller_and_still_validates():
         decision_type_for(["nope"])
     from mnestic.models.decision import DEFAULT_ALLOWED_OPS, resolve_allowed_ops
 
-    assert resolve_allowed_ops(None) == DEFAULT_ALLOWED_OPS and len(resolve_allowed_ops(["*"])) == 29
+    assert resolve_allowed_ops(None) == DEFAULT_ALLOWED_OPS and len(resolve_allowed_ops(["*"])) == 32
     default = len(json.dumps(decision_type_for(None).model_json_schema(), separators=(",", ":")))
     assert default < full * 0.75  # the default a skill gets is itself much smaller than "everything"
     assert "Exactly one of" not in json.dumps(AgentDecision.model_json_schema())  # class docstrings no longer in the schema

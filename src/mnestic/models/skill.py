@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -33,6 +34,10 @@ class SkillSpecification(BaseModel):
         default=None,
         description="Patch ops this skill uses (e.g. ['set_entity','set_environment','set_observation_summary']). "
         "Prunes the output schema sent to the model; None = the default core set, ['*'] = every op.",
+    )
+    domain_schema: dict[str, Any] | None = Field(
+        default=None,
+        description="JSON Schema for ExecutionState.domain (the paper's per-domain schema). Every write is validated against it.",
     )
     allowed_actions: list[str] | None = Field(
         default=None,

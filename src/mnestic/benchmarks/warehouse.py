@@ -93,19 +93,16 @@ class WarehouseEnv:
         return self.order_list[self.cursor] if self.cursor < len(self.order_list) else None
 
     def initial_ops(self) -> list[dict[str, Any]]:
-        """Σ₀: the known starting inventory as state-patch ops (one entity per shelf + capacity)."""
-        ops: list[dict[str, Any]] = [{"op": "set_environment", "key": "capacity", "value": self.capacity},
-                                     {"op": "set_environment", "key": "shelves", "value": len(self.inventory)}]
-        for shelf in self.inventory:
-            ops.append({"op": "set_entity", "name": shelf, "description": self._desc(shelf)})
-        return ops
+        """Σ₀: the known starting inventory, typed (domain.shelves.<id>.<item> = qty) — the runtime keeps these books."""
+        return [{"op": "set_path", "path": "capacity", "value": self.capacity},
+                {"op": "set_path", "path": "shelves", "value": {shelf: dict(items) for shelf, items in self.inventory.items()}}]
 
     def initial_observation(self) -> str:
         lines = [f"Warehouse: {self.shelves} shelves ({', '.join(self.inventory)}), capacity {self.capacity} units each.", "Initial contents:"]
         for shelf, items in self.inventory.items():
             lines.append(f"  {shelf}: " + (", ".join(f"{k}={v}" for k, v in sorted(items.items())) or "empty"))
         o = self.current_order()
-        lines += ["", "The warehouse tool will NOT restate contents; track them yourself (your state already holds this starting inventory).",
+        lines += ["", "Your state's `domain.shelves` holds this inventory and the runtime updates it after every successful store/ship.",
                   o.text() if o else "no orders"]
         return "\n".join(lines)
 
@@ -185,7 +182,12 @@ class WarehouseTool(Tool):
 
     async def run(self, args: Args, ctx: ToolContext) -> ToolResult:
         ok, msg = self.env.act(args.action, args.shelf, args.item, args.qty, args.answer)
-        return ToolResult(ok=True, output=msg, data={"correct": ok, "orders_done": self.env.cursor, "orders_total": len(self.env.order_list)})
+        effects: list[dict[str, Any]] = []
+        if ok and args.action in ("store", "ship") and args.shelf and args.item and args.qty:
+            delta = args.qty if args.action == "store" else -args.qty
+            effects.append({"op": "adjust_path", "path": f"shelves.{args.shelf}.{args.item}", "delta": delta})
+        return ToolResult(ok=True, output=msg, data={"correct": ok, "orders_done": self.env.cursor, "orders_total": len(self.env.order_list)},
+                          state_effects=effects)
 
 
 WAREHOUSE_SKILL = SkillSpecification(
@@ -194,77 +196,56 @@ WAREHOUSE_SKILL = SkillSpecification(
     required_tools=["warehouse"],
     instructions=(
         "You operate a warehouse. Each observation gives you the outcome of your last action and the NEXT order.\n"
-        "Keep the exact contents of every shelf in `important_entities`: key = shelf id (e.g. S03), value = comma-separated "
-        "`item=qty` pairs, or `empty`. Update the entry for a shelf every time you store or ship on it (set_entity replaces it).\n"
-        "Rules: a shelf holds at most `capacity` units in total; ship only from a shelf that holds enough of the item; for count "
-        "orders sum the item across all shelves from your entities and answer with `answer`.\n"
-        "Respond to every order with exactly one `warehouse` tool action. Do not add facts or hypotheses; the entities ARE the "
-        "state. Verification: `inspect` a shelf (does not consume the order) whenever a store/ship was rejected, before answering a "
-        "count if you are unsure, and every ~10 orders for the shelves you touched most; then correct that shelf's entity. "
-        "When the observation says ALL ORDERS DONE, submit completion with outcome=success."
+        "`domain.shelves` in your state is the inventory (shelf -> item -> quantity) and `domain.capacity` the per-shelf limit. "
+        "The runtime updates `domain.shelves` itself after every successful store/ship — you never edit it. Your job is to choose: "
+        "for store, a shelf whose total quantity + qty <= capacity; for ship, a shelf whose quantity of the item >= qty; for count, "
+        "the sum of that item across all shelves, answered with `answer`.\n"
+        "Respond to every order with exactly one `warehouse` tool action; an empty state_patch is fine. `inspect` a shelf (does not "
+        "consume the order) if a store/ship was rejected. When the observation says ALL ORDERS DONE, submit completion with outcome=success."
     ),
     completion_criteria=["all orders processed"], phases=["operating", "done"], initial_phase="operating", default_max_steps=5000,
-    allowed_ops=["set_entity", "remove_entity", "set_environment", "set_observation_summary", "set_phase"],
+    allowed_ops=["set_observation_summary", "set_phase"],
     allowed_actions=["tool"],
+    domain_schema={
+        "type": "object", "additionalProperties": False,
+        "properties": {
+            "capacity": {"type": "integer", "minimum": 1},
+            "shelves": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}},
+        },
+        "required": ["capacity", "shelves"],
+    },
 )
 
 
 def warehouse_script(context: Any) -> dict[str, Any]:
-    """Deterministic optimal policy for the scripted reasoner (validates the harness; no model)."""
+    """Deterministic optimal policy for the scripted reasoner (validates the harness; no model). Reads the runtime-kept books."""
     from mnestic.benchmarks.scripts import observation_text, parse_state
 
     state = parse_state(context)
     v = state["state_version"]
     obs = observation_text(context)
-    ents = dict(state["important_entities"])
-    ops: list[dict[str, Any]] = []
-    cap = int(state["environment"]["properties"].get("capacity", 10))
-    if "Initial contents:" in obs:  # seed entities from the initial observation
-        for line in obs.splitlines():
-            m = re.match(r"\s+(S\d+): (.*)", line)
-            if m:
-                ents[m.group(1)] = m.group(2)
-                ops.append({"op": "set_entity", "name": m.group(1), "description": m.group(2)})
-        cap_match = re.search(r"capacity (\d+)", obs)
-        assert cap_match is not None
-        cap = int(cap_match.group(1))
-        ops.append({"op": "set_environment", "key": "capacity", "value": cap})
+    shelves: dict[str, dict[str, int]] = state["domain"]["shelves"]
+    cap = int(state["domain"]["capacity"])
     if "ALL ORDERS DONE" in obs:
-        return {"rationale_summary": "done", "state_patch": {"expected_state_version": v, "ops": ops}, "completion": {"outcome": "success", "summary": "orders complete"}}
+        return {"rationale_summary": "done", "state_patch": {"expected_state_version": v, "ops": []}, "completion": {"outcome": "success", "summary": "orders complete"}}
     if "ORDER #" not in obs:  # runtime feedback: the pending order is whatever we recorded last time
         obs = state.get("last_observation_summary") or ""
-
-    def parse(desc: str) -> dict[str, int]:
-        return {} if desc.strip() == "empty" else {k: int(q) for k, q in (p.split("=") for p in desc.split(", "))}
-
-    def fmt(d: dict[str, int]) -> str:
-        return ", ".join(f"{k}={q}" for k, q in sorted(d.items())) or "empty"
-
     m = re.search(r"ORDER #\d+: (store|ship|count)(?: (\d+) (\w+)| — how many (\w+))", obs)
     assert m is not None, f"no order in observation: {obs[:120]}"
-    ops.append({"op": "set_observation_summary", "summary": m.group(0)})
+    ops: list[dict[str, Any]] = [{"op": "set_observation_summary", "summary": m.group(0)}]
     kind = m.group(1)
     action: dict[str, Any]
     if kind == "store":
         qty, item = int(m.group(2)), m.group(3)
-        shelf = next(s for s, d in sorted(ents.items()) if sum(parse(d).values()) + qty <= cap)
-        inv = parse(ents[shelf])
-        inv[item] = inv.get(item, 0) + qty
-        ops.append({"op": "set_entity", "name": shelf, "description": fmt(inv)})
+        shelf = next(sh for sh, inv in sorted(shelves.items()) if sum(inv.values()) + qty <= cap)
         action = {"kind": "tool", "tool_name": "warehouse", "arguments": {"action": "store", "shelf": shelf, "item": item, "qty": qty}}
     elif kind == "ship":
         qty, item = int(m.group(2)), m.group(3)
-        shelf = next(s for s, d in sorted(ents.items()) if parse(d).get(item, 0) >= qty)
-        inv = parse(ents[shelf])
-        inv[item] -= qty
-        if inv[item] == 0:
-            del inv[item]
-        ops.append({"op": "set_entity", "name": shelf, "description": fmt(inv)})
+        shelf = next(sh for sh, inv in sorted(shelves.items()) if inv.get(item, 0) >= qty)
         action = {"kind": "tool", "tool_name": "warehouse", "arguments": {"action": "ship", "shelf": shelf, "item": item, "qty": qty}}
     else:
         item = m.group(4)
-        total = sum(parse(d).get(item, 0) for d in ents.values())
-        action = {"kind": "tool", "tool_name": "warehouse", "arguments": {"action": "count", "answer": total}}
+        action = {"kind": "tool", "tool_name": "warehouse", "arguments": {"action": "count", "answer": sum(inv.get(item, 0) for inv in shelves.values())}}
     return {"rationale_summary": kind, "state_patch": {"expected_state_version": v, "ops": ops}, "action": action}
 
 
@@ -296,7 +277,7 @@ async def run_skillstate(reasoner: Any, *, orders: int = 60, shelves: int = 12, 
     import tempfile
     from pathlib import Path
 
-    from mnestic.config import RuntimeConfig, StateLimits
+    from mnestic.config import RuntimeConfig
     from mnestic.graph.runtime import Runtime
     from mnestic.storage.db import Database
     from mnestic.storage.store import Store
@@ -305,7 +286,7 @@ async def run_skillstate(reasoner: Any, *, orders: int = 60, shelves: int = 12, 
     env = WarehouseEnv(shelves=shelves, orders=orders, seed=seed)
     tmp = tempfile.mkdtemp()
     db_path = Path(db_path or Path(tmp) / "wh.db")
-    cfg = RuntimeConfig(db_path=db_path, workspace_root=Path(tmp), state_limits=StateLimits(max_entities=max(60, shelves + 5)), max_consecutive_continues=2)
+    cfg = RuntimeConfig(db_path=db_path, workspace_root=Path(tmp), max_consecutive_continues=2)
     store = Store(Database(db_path))
     tools = ToolRegistry()
     tools.register(WarehouseTool(env))

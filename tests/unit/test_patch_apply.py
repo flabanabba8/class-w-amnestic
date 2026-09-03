@@ -171,3 +171,18 @@ def test_promote_and_reject_are_idempotent_and_not_found_hints(base_state: Execu
     assert "already rejected" in r2.changes[0] and len(r2.state.rejected_hypotheses) == 1
     with pytest.raises(PatchRejected, match="that id is a rejected hypothesis"):
         apply_patch(r2.state, patch(2, {"op": "promote_hypothesis", "hypothesis_id": "h2", "evidence_event_ids": ["e"]}))
+
+
+def test_domain_path_ops_and_schema(base_state: ExecutionState):
+    schema = {"type": "object", "properties": {"shelves": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}}}}
+    s = apply_patch(base_state, patch(0, {"op": "set_path", "path": "shelves", "value": {"S01": {"bolt": 2}}}), domain_schema=schema).state
+    r = apply_patch(s, patch(1, {"op": "adjust_path", "path": "shelves.S01.bolt", "delta": 3}, {"op": "adjust_path", "path": "shelves.S02.gear", "delta": 1}), domain_schema=schema)
+    assert r.state.domain["shelves"] == {"S01": {"bolt": 5}, "S02": {"gear": 1}}
+    r2 = apply_patch(r.state, patch(2, {"op": "adjust_path", "path": "shelves.S01.bolt", "delta": -5}), domain_schema=schema)
+    assert r2.state.domain["shelves"]["S01"] == {}  # dropped at zero
+    with pytest.raises(PatchRejected, match="domain_schema"):
+        apply_patch(r2.state, patch(3, {"op": "set_path", "path": "shelves.S02.gear", "value": "lots"}), domain_schema=schema)
+    with pytest.raises(PatchRejected, match="not numeric"):
+        apply_patch(r2.state, patch(3, {"op": "set_path", "path": "note", "value": "x"}, {"op": "adjust_path", "path": "note", "delta": 1}))
+    r3 = apply_patch(r2.state, patch(3, {"op": "delete_path", "path": "shelves.S02"}), domain_schema=schema)
+    assert "S02" not in r3.state.domain["shelves"] and r3.archived[0].kind == "domain"

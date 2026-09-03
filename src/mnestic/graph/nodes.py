@@ -129,7 +129,7 @@ class ApplyDecision(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
             return ids - d.store.existing_event_ids(s.run_id, ids)
 
         try:
-            applied = apply_patch(state, patch, limits=d.config.state_limits, evidence_checker=missing_evidence)
+            applied = apply_patch(state, patch, limits=d.config.state_limits, evidence_checker=missing_evidence, domain_schema=d.skill.domain_schema)
             new_state = applied.state
             new_state.counters.patches_applied += 1
             new_state.counters.model_calls += s.model_calls_this_step
@@ -324,6 +324,23 @@ class CaptureObservation(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
             s.execution_state.counters.tool_calls += 1
             if not result.ok:
                 s.execution_state.counters.errors += 1
+        if result.ok and result.state_effects:
+            # The tool reported what happened; the runtime records it. No model arithmetic, no re-derivation.
+            from mnestic.models.patch import StatePatch
+
+            effects = StatePatch(expected_state_version=s.execution_state.state_version, ops=result.state_effects)  # type: ignore[arg-type]
+            try:
+                eff = apply_patch(s.execution_state, effects, limits=d.config.state_limits, domain_schema=d.skill.domain_schema)
+                with d.store.transaction():
+                    pid = d.store.record_patch(s.run_id, s.step, effects, status="applied", resulting_version=eff.state.state_version, changes=eff.changes)
+                    d.store.commit_state(eff.state, expected_version=s.execution_state.state_version, patch_id=pid, step=s.step)
+                    d.store.append_event(s.run_id, s.step, EventType.PATCH_APPLIED, f"tool effects applied by runtime: {'; '.join(eff.changes)[:200]}",
+                                         {"patch_id": pid, "source": f"tool:{action.tool_name}", "changes": eff.changes}, ref_table="state_patches", ref_id=pid)
+                s.execution_state = eff.state
+                full += "\n[state updated by runtime: " + "; ".join(eff.changes)[:300] + "]"
+            except PatchRejected as exc:
+                d.store.save_error(s.run_id, s.step, "tool_effect_rejected", str(exc))
+                full += f"\n[tool state effects rejected: {exc}]"
         data = dict(result.data or {})
         data["ok"] = result.ok
         data["request"] = {"tool": action.tool_name, "arguments": action.arguments}  # a stateless step must see what was asked

@@ -6,7 +6,7 @@ Application semantics live in ``mnestic.state.apply``.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
@@ -192,6 +192,32 @@ class RemoveConstraint(StrictModel):
     constraint: ShortText
 
 
+DomainPath = Annotated[str, Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9_\-]+(\.[A-Za-z0-9_\-]+)*$")]
+"""Dotted path into ExecutionState.domain, e.g. ``shelves.S03.clamp``."""
+
+
+class SetPath(StrictModel):
+    """Set a value in the typed domain state (creates intermediate objects)."""
+
+    op: Literal["set_path"] = "set_path"
+    path: DomainPath
+    value: Any
+
+
+class AdjustPath(StrictModel):
+    """Add ``delta`` to a numeric value in the domain state (missing = 0). The runtime does the arithmetic."""
+
+    op: Literal["adjust_path"] = "adjust_path"
+    path: DomainPath
+    delta: float
+    drop_at_zero: bool = Field(default=True, description="Delete the key when the result is 0")
+
+
+class DeletePath(StrictModel):
+    op: Literal["delete_path"] = "delete_path"
+    path: DomainPath
+
+
 class SetObservationSummary(StrictModel):
     """Replace (not append) the one-line summary of the newest observation."""
 
@@ -234,7 +260,10 @@ PatchOp = Annotated[
     | AddConstraint
     | RemoveConstraint
     | SetObservationSummary
-    | SetMetadata,
+    | SetMetadata
+    | SetPath
+    | AdjustPath
+    | DeletePath,
     Field(discriminator="op"),
 ]
 

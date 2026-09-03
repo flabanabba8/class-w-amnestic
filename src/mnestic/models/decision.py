@@ -58,6 +58,7 @@ DEFAULT_ALLOWED_OPS: list[str] = [
     "add_artifact", "add_blocker", "remove_blocker",
     "set_environment", "set_entity", "remove_entity",
     "set_observation_summary",
+    "set_path", "adjust_path", "delete_path",
 ]
 """The op subset a skill gets when it declares nothing: enough for facts/hypotheses/plan/phase/entities. Everything
 else (questions, pending actions, constraints, metadata, status, objective, archive_facts, update_hypothesis,

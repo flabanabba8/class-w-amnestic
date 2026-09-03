@@ -122,6 +122,6 @@ def test_contract_lists_the_skill_allowed_ops_with_fields(simple_skill: SkillSpe
     contract = ctx.sections[SECTION_CONTRACT]
     assert "- set_phase(phase)" in contract and "add_fact(" not in contract
     full = ContextBuilder(allowed_ops=["*"]).build(simple_skill, base_state, _obs(1, "x")).sections[SECTION_CONTRACT]
-    assert sum(1 for line in full.split("Patch ops available", 1)[1].splitlines() if line.startswith("- ")) == 29  # every op, once
+    assert sum(1 for line in full.split("Patch ops available", 1)[1].splitlines() if line.startswith("- ")) == 32  # every op, once
     default = ContextBuilder().build(simple_skill, base_state, _obs(1, "x")).sections[SECTION_CONTRACT]
-    assert sum(1 for line in default.split("Patch ops available", 1)[1].splitlines() if line.startswith("- ")) == 16
+    assert sum(1 for line in default.split("Patch ops available", 1)[1].splitlines() if line.startswith("- ")) == 19
