@@ -73,7 +73,8 @@ started before `inspect` existed and could not verify.
 | Kimi K3 | SKILL.state (*old build*) | 0.88 | 1.76M | 5.6K → 5.7K, flat | 94K | 2.9 h (NVIDIA stalls) | before inspect/seed/slim |
 | Kimi K3 | SKILL.state, current build | **0.94 over 153 orders** (49/50, 47/49, 43/49 per window) | 0.77M for 153 | 5.0K flat | 36K | 2.9 h, then stopped | three consecutive 300 s NVIDIA stalls tripped the decision-failure cap; timeouts now have their own budget and pause the run instead (fixed after this run) |
 | Gemma 4 12B (local) | ReAct | 0.83 | 6.7M (50% KV-cache reuse) | ~1K → 22K | 9K | 12 min | 131K window, no truncation |
-| **Gemma 4 12B** | **SKILL.state, runtime-kept books** | **0.99** (298/300) | 0.87M | flat 6.3K chars, 2.6 s/call | 49K | **13 min** | 0 inspections, 0 rejections |
+| **Gemma 4 12B** | **SKILL.state, generic tool-fact ledger** | **0.99** (298/300) | 1.13M | flat 8.3K chars, 2.6 s/call | 51K | **13 min** | no task-specific bookkeeping code at all |
+| Gemma 4 12B | SKILL.state, hand-written adjust effects (removed) | 0.99 (298/300) | 0.87M | flat 6.3K chars | 49K | 13 min | the version that was task-specific |
 | Gemma 4 12B | SKILL.state, runtime-kept shelves only | 0.71 over 238 | 0.71M | flat 6.3K chars | 45K | 12 min | then looped on `inspect S02`; remaining misses were capacity sums |
 | Gemma 4 12B | SKILL.state, model-kept books | 0.48 | 0.80M | flat 5.4K chars | 62K | 13 min | 82% → 23% over the run: arithmetic drift in the model's own table |
 | scripted optimal policy | SKILL.state | 1.00 | — | flat 5.5K chars | — | 1 s | harness ceiling |
@@ -85,11 +86,12 @@ The first version of the warehouse skill kept the inventory as free-text entitie
 environment had already said exactly what happened. Under that design a strong model scored 0.85–0.95 and a 12B model
 drifted to 0.48, while the transcript agent could always re-derive from raw history.
 
-The runtime now owns the books: skills declare a typed `domain_schema`; `set_path`/`adjust_path`/`delete_path` ops let
-the runtime do arithmetic; and a tool result can carry `state_effects` ("stored 3 clamp on S03" → `adjust_path
-shelves.S03.clamp +3`, `free.S03 -3`, `totals.clamp +3`) that the runtime applies and archives before the model's next
-step. The model's decision is a lookup, the bookkeeping is deterministic, and every write is validated against the
-schema. Same information reaches the ReAct baseline as text.
+The runtime now owns the books, generically: a tool result may carry `facts` about named things (a shelf, a file, a
+service), and the runtime keeps the latest fact per thing under `domain.<tool>.<key>` with provenance, bounded per tool.
+The warehouse tool reports the shelf it touched — its contents and free space — exactly as any inventory API would; no
+`+3` arithmetic ops, no task code. Skills may also declare a typed `domain_schema` and use `set_path`/`adjust_path`
+ops for state they own. The model's decision is a lookup; the bookkeeping is deterministic. The ReAct baseline gets the
+same information as text.
 
 ### Reading
 
