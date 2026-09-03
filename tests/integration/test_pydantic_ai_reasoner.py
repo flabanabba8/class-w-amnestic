@@ -133,3 +133,20 @@ async def test_wall_clock_timeout_becomes_bounded_error(config, store, simple_sk
                                  Observation(run_id="r", step=0, kind=ObservationKind.TASK_INPUT, source="task", content="x"))
     result = await reasoner.decide(ctx)
     assert not result.ok and result.error_kind == "timeout" and result.duration_ms < 1500
+
+
+async def test_provider_timeouts_have_their_own_budget_and_pause_instead_of_fail(config, store, simple_skill):
+    """Three NVIDIA stalls ended a 300-order run as 'failed'. Timeouts now pause (resumable) after their own cap."""
+    import asyncio
+
+    calls = {"n": 0}
+
+    async def slow(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        calls["n"] += 1
+        await asyncio.sleep(0.5)
+        return ModelResponse(parts=[TextPart(content="never")])
+
+    cfg = config.model_copy(update={"max_decision_failures": 2, "max_timeout_failures": 4})
+    reasoner = PydanticAIReasoner(FunctionModel(slow), retries=0, wall_clock_timeout=0.05)
+    out = await Runtime(cfg, store, reasoner=reasoner, tools=default_registry()).start(simple_skill, "go")
+    assert out.status == RunStatus.PAUSED and out.reason == "too_many_timeouts" and calls["n"] == 4

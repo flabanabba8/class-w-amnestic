@@ -72,6 +72,7 @@ class RuntimeConfig(BaseModel):
     max_repeated_actions: int = Field(default=3, ge=2, description="Identical tool action (same tool + arguments) seen this many times within action_window is treated as a loop")
     action_window: int = Field(default=12, ge=2, description="Sliding window (in tool actions) for the repeated-action loop guard")
     max_decision_failures: int = Field(default=3, ge=1, description="Consecutive rejected/failed decisions before the run fails")
+    max_timeout_failures: int = Field(default=8, ge=1, description="Consecutive provider timeouts before the run fails (stalls are not model mistakes)")
     allow_workspace_escape: bool = False
     state_limits: StateLimits = Field(default_factory=StateLimits)
     shell: ShellPolicy = Field(default_factory=ShellPolicy)
@@ -97,6 +98,8 @@ class RuntimeConfig(BaseModel):
             import json
 
             values["model_settings"] = json.loads(v)
+        if v := env.get("MNESTIC_MAX_TIMEOUT_FAILURES"):
+            values["max_timeout_failures"] = int(v)
         if v := env.get("MNESTIC_MODEL_TIMEOUT"):
             values["model_timeout_seconds"] = float(v)
         if v := env.get("MNESTIC_MODEL_RETRIES"):

@@ -69,6 +69,7 @@ class RuntimeGraphState:
     consecutive_continues: int = 0
     recent_action_signatures: list[str] = field(default_factory=list)
     loop_trips: int = 0
+    consecutive_timeouts: int = 0
     """Loop-guard trips this invocation; never reset, so persistent looping still fails the run."""
     steps_this_invocation: int = 0
     max_steps_this_invocation: int = 10_000

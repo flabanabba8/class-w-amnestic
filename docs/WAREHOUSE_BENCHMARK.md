@@ -69,7 +69,8 @@ started before `inspect` existed and could not verify.
 | Sonnet 5 | SKILL.state, no inspect | 0.85 | ≈ 1.12M | flat | 108K | 24 min | drift never corrected |
 | Sonnet 5 | ReAct | 0.96 | ≈ 8.5M (92% cache hits) | 2.2K → **51K** | 417K | 97 min | transcript 659K chars at the end |
 | **Kimi K3** | ReAct | **0.98** | 7.7M (no caching) | 1.0K → **51K** | 34K | 87 min | strongest raw result; expensive |
-| Kimi K3 | SKILL.state (*old build*) | 0.88 | 1.76M | 5.6K → 5.7K, flat | 94K | 2.9 h (NVIDIA stalls) | before inspect/seed/slim; matched rerun pending |
+| Kimi K3 | SKILL.state (*old build*) | 0.88 | 1.76M | 5.6K → 5.7K, flat | 94K | 2.9 h (NVIDIA stalls) | before inspect/seed/slim |
+| Kimi K3 | SKILL.state, current build | **0.94 over 153 orders** (49/50, 47/49, 43/49 per window) | 0.77M for 153 | 5.0K flat | 36K | 2.9 h, then stopped | three consecutive 300 s NVIDIA stalls tripped the decision-failure cap; timeouts now have their own budget and pause the run instead (fixed after this run) |
 | Gemma 4 12B (local) | ReAct | 0.83 | 6.7M (50% KV-cache reuse) | ~1K → 22K | 9K | 12 min | 131K window, no truncation |
 | Gemma 4 12B | SKILL.state, seeded + inspect | 0.48 | 0.80M | flat 5.4K chars | 62K | 13 min | 82% in the first 50 orders → 23% in the last: arithmetic drift, 8 inspections |
 | scripted optimal policy | SKILL.state | 1.00 | — | flat 5.5K chars | — | 1 s | harness ceiling |
@@ -80,7 +81,8 @@ started before `inspect` existed and could not verify.
   order to 51K. Over 300 orders that is 7–8× fewer prompt tokens for Sonnet/Kimi and 4× fewer wall-clock minutes for
   Sonnet (22 vs 97), and the gap widens with every additional order. Caching softens the *bill* for ReAct on routes
   that have it (92% hits) but not the latency: the model still reads 51K tokens per order.
-- **Accuracy: tied for a strong model with verification, not better.** Sonnet 0.95 vs 0.96. Without the `inspect`
+- **Accuracy: tied for a strong model with verification, not better.** Sonnet 0.95 vs 0.96; Kimi 0.94 (over the 153
+  orders it completed before provider stalls stopped it) vs 0.98. Without the `inspect`
   tool the state-based agent drifts (0.85) because a wrong shelf belief is never contradicted; with it, it verifies
   ~once per 18 orders and recovers. The paper's accuracy gain did not reproduce here; parity at 1/8 the cost did.
 - **Small models: the transcript wins.** Gemma 12B cannot maintain a 12-line inventory through 300 arithmetic

@@ -185,6 +185,7 @@ class ApplyDecision(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
         s.execution_state = new_state
         s.patches_applied_this_step += 1
         s.consecutive_failures = 0  # a successfully applied decision breaks the failure streak
+        s.consecutive_timeouts = 0
         d.log.info("state committed", step=s.step, version=new_state.state_version, changes=len(applied.changes))
 
         if decision.completion is not None:
@@ -360,10 +361,16 @@ class HandleFailure(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
     async def run(self, ctx: Ctx) -> BuildContext | Finalize:
         s, d = ctx.state, ctx.deps
         s.execution_state.counters.errors += 1
-        s.execution_state.counters.consecutive_failures += 1
         if self.kind == "patch":
             s.execution_state.counters.patches_rejected += 1
-        s.consecutive_failures += 1
+        if self.kind == "timeout":
+            # A stalled provider is not a model mistake: it gets its own (larger) budget and does not consume the
+            # decision-failure streak. Everything else counts toward the streak.
+            s.consecutive_timeouts += 1
+        else:
+            s.consecutive_timeouts = 0
+            s.execution_state.counters.consecutive_failures += 1
+            s.consecutive_failures += 1
         if self.kind == "loop":
             s.loop_trips += 1
         d.log.warning("step failure", step=s.step, kind=self.kind, reason=self.reason[:200])
@@ -371,6 +378,8 @@ class HandleFailure(BaseNode[RuntimeGraphState, RuntimeDeps, RunOutcome]):
             d.store.save_error(s.run_id, s.step, self.kind, self.reason)
             d.store.append_event(s.run_id, s.step, EventType.ERROR, f"{self.kind} failure: {self.reason[:200]}", {"kind": self.kind, "reason": self.reason})
             d.store.update_step(s.run_id, s.step, phase="failed")
+        if s.consecutive_timeouts >= d.config.max_timeout_failures:
+            return Finalize(reason="too_many_timeouts", status=RunStatus.PAUSED, summary=self.reason)  # resumable, not a failure
         if s.consecutive_failures >= d.config.max_decision_failures or s.loop_trips >= d.config.max_decision_failures:
             return Finalize(reason="too_many_failures", status=RunStatus.FAILED, summary=self.reason)
         # Bounded feedback: the model sees ONLY this reason plus current state next step (no transcript). The observation

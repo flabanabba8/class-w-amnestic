@@ -258,6 +258,7 @@ Environment (`MNESTIC_*`) or CLI flags:
 | `MNESTIC_OUTPUT_MODE` | `tool` | `tool` \| `native` \| `prompted` structured-output mode |
 | `MNESTIC_MODEL_RETRIES` | `2` | in-step output validation retries |
 | `MNESTIC_MODEL_SETTINGS` | `{}` | JSON merged into PydanticAI `ModelSettings`, e.g. `{"openai_reasoning_effort":"low","temperature":0}` (llama.cpp/Gemma: controls thinking) |
+| `MNESTIC_MAX_TIMEOUT_FAILURES` | `8` | consecutive provider timeouts before the run *pauses* (resumable); model mistakes have their own 3-strike cap |
 | `MNESTIC_MODEL_TIMEOUT` | `300` | wall-clock seconds per reasoning step (also passed as the provider request timeout); a hung provider becomes a bounded model-error observation and is retried |
 | `MNESTIC_SHELL_MODE` | `allowlist` | `disabled` \| `allowlist` \| `unrestricted` |
 | `MNESTIC_LOG_LEVEL` / `MNESTIC_LOG_JSON` | `INFO` / off | structured logging |
