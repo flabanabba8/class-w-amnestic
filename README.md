@@ -108,7 +108,28 @@ export OPENAI_API_KEY=...            # or ANTHROPIC_API_KEY, etc.
 uv run mnestic run codebase-research --task 'Where is `PORT` configured?' --model openai:gpt-4o-mini --workspace /tmp/demo
 ```
 
-A local OpenAI-compatible server works too: `OPENAI_BASE_URL=http://localhost:8080/v1 OPENAI_API_KEY=x --model openai:my-model`.
+Any OpenAI-compatible proxy or local server (9Router, LiteLLM, llama-server, Ollama, vLLM…) works through the
+**`openai-chat:`** prefix — note that plain `openai:` selects OpenAI's *Responses* API in pydantic-ai 2.x, which
+chat-completions-only proxies do not serve:
+
+```bash
+OPENAI_BASE_URL=http://localhost:20128/v1 OPENAI_API_KEY=<proxy key or x> \
+  uv run mnestic run codebase-research --task '...' --model openai-chat:<model-id>
+```
+
+### Verified with 9Router
+
+Tested end-to-end through a local [9Router](https://9router.com/) instance (`OPENAI_BASE_URL=http://localhost:20128/v1`,
+`OPENAI_API_KEY=<9Router key>`), `codebase-research` skill, 8-step cap:
+
+| model via 9Router | output mode | result |
+|---|---|---|
+| `openai-chat:cc/claude-haiku-4-5-20251001` | `tool` (default) | completed in 5 steps, 6 calls, ~3.7K input tokens/call, correct answer with evidence |
+| `openai-chat:groq/openai/gpt-oss-120b` | `tool` | failed: Groq's server-side tool-call validation rejects the nested `AgentDecision` schema |
+| `openai-chat:groq/openai/gpt-oss-120b` | `prompted` (`MNESTIC_OUTPUT_MODE=prompted`) | completed in 5 steps, 6 calls (3 in-step retries), correct answer |
+
+Rule of thumb: frontier models → `tool`; smaller/open models or strict proxies → `prompted`. Either way the
+per-step context stayed flat (~7.5K chars) while the proxy did the routing.
 
 ## Example run
 
@@ -199,7 +220,7 @@ Environment (`MNESTIC_*`) or CLI flags:
 | `MNESTIC_DB_PATH` | `.mnestic/mnestic.db` | SQLite file (WAL, foreign keys) |
 | `MNESTIC_WORKSPACE` | cwd | tool sandbox root |
 | `MNESTIC_SKILLS_DIRS` | `skills` | `os.pathsep`-separated skill roots |
-| `MNESTIC_MODEL` | `mock` | PydanticAI model string, e.g. `anthropic:claude-sonnet-4-5` |
+| `MNESTIC_MODEL` | `mock` | PydanticAI model string, e.g. `anthropic:claude-sonnet-4-5`, `openai:gpt-4o-mini`, `openai-chat:<id>` for OpenAI-compatible proxies (+ `OPENAI_BASE_URL`) |
 | `MNESTIC_OUTPUT_MODE` | `tool` | `tool` \| `native` \| `prompted` structured-output mode |
 | `MNESTIC_MODEL_RETRIES` | `2` | in-step output validation retries |
 | `MNESTIC_SHELL_MODE` | `allowlist` | `disabled` \| `allowlist` \| `unrestricted` |

@@ -15,6 +15,7 @@ SQLite 3.53.1 (FTS5 available). Spike scripts verified each API before use.
 | structured output via `result_type` | `output_type` with `ToolOutput` / `NativeOutput` / `PromptedOutput` wrappers | configurable `output_mode` |
 | `pydantic_ai.models.ALLOW_MODEL_REQUESTS` | exists; set `False` in tests | done |
 | docs at `ai.pydantic.dev` | redirected to `pydantic.dev/docs/ai/...`; several pages 404 | source inspection instead |
+| `openai:<model>` works with any OpenAI-compatible server | in pydantic-ai 2.x `openai:` → `OpenAIResponsesModel` (Responses API); chat-completions-only proxies (9Router, LiteLLM, llama-server) need `openai-chat:<model>` + `OPENAI_BASE_URL` | documented in README; `doctor` prints the resolved model class |
 | `sqlite3.executescript` inside a transaction | it issues an implicit COMMIT first | custom statement splitter (`run_script`) |
 
 ## Design decisions worth knowing
@@ -41,6 +42,12 @@ SQLite 3.53.1 (FTS5 available). Spike scripts verified each API before use.
 - **Dependencies**: `pydantic`, `pydantic-ai-slim[openai,anthropic]`, `pydantic-graph`,
   `pyyaml`; dev: `pytest`, `pytest-asyncio`, `ruff`, `mypy`. No vector DB, no Redis, no
   Postgres, no web framework. The CLI is argparse.
+
+## Live verification
+
+`openai-chat:` + `OPENAI_BASE_URL` against a local 9Router: Claude Haiku 4.5 completes `codebase-research` in tool
+mode; Groq `gpt-oss-120b` needs `prompted` mode (Groq validates tool calls server-side and rejects the large nested
+schema). `model_calls` recorded real token usage from the proxy in both cases.
 
 ## Things intentionally left for later
 

@@ -26,8 +26,9 @@ from mnestic.models.decision import AgentDecision
 def build_model(model: str | Model) -> Model:
     """Resolve a PydanticAI model from a string like ``openai:gpt-4o-mini`` or ``anthropic:claude-...``.
 
-    OpenAI-compatible local servers: set ``OPENAI_BASE_URL`` (and any ``OPENAI_API_KEY``) and use
-    ``openai:<model-name>``; or ``ollama:<model>`` with ``OLLAMA_BASE_URL``.
+    OpenAI-compatible proxies/local servers (9Router, LiteLLM, llama-server, vLLM): set ``OPENAI_BASE_URL``
+    (and ``OPENAI_API_KEY``) and use ``openai-chat:<model-name>`` — plain ``openai:`` selects the Responses API,
+    which chat-completions-only servers do not implement. Ollama: ``ollama:<model>`` with ``OLLAMA_BASE_URL``.
     """
     if isinstance(model, Model):
         return model
