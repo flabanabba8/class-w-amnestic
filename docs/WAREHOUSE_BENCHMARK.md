@@ -59,4 +59,13 @@ and the cached op reference are what made grammar mode usable at all.
 
 ## Kimi K3 (NVIDIA route, no prompt caching, no route prefix) — 300 orders
 
-_pending; per-call prompt tokens observed so far: ≈ 5.5K flat (1.4K context + 4.4K output schema), 0 wrong through order 14._
+| score | correct | steps | calls | prompt tokens (provider, no caching) | per call first → last | context chars first → last | wall |
+|---:|---:|---:|---:|---:|---|---|---:|
+| **0.88** | 265/300 | 341 | 342 | 1,761,269 (≈ 5.9K/call) | 5,580 → 5,698 (**flat**) | 5,177 → 5,782 (**flat**) | 2.9 h |
+
+Run on the pre-slim schema (30 ops) and before the feedback fix; NVIDIA's endpoint has no prompt caching, so these are
+full-price tokens. The 35 misses are count arithmetic (e.g. "clamp total is 4") and stale shelf beliefs, not format
+errors (1 rejected patch in 342 calls). The per-call cost at order 300 is the same as at order 1 — the property the
+architecture exists for. For comparison, ReAct's measured slope (~160 tokens/order) puts a 300-order transcript agent at
+≈ 50K tokens per call by the end and ≈ 7.8M cumulative, 4.4× this run — and that is before the transcript starts
+colliding with context limits. With the slim schema the same run would cost ≈ 2.5K tokens/call.

@@ -69,8 +69,10 @@ implemented (resume refuses a changed skill rather than migrating).
 2. **Optional reasoning scratchpad** (paper's `R_t`). For non-reasoning models a bounded, archived,
    never-re-injected `scratchpad` field could raise decision quality. The brief forbids storing hidden
    chain-of-thought; this would be opt-in per config and archived only. Decision for the owner.
-3. **Accuracy comparison vs. a history-based agent** on a real task (the paper's Tables 1/4). Our
-   evidence is token scaling plus qualitative live runs; a controlled head-to-head is roadmap stage 7.
+3. **Accuracy comparison vs. a history-based agent** — now measured on the warehouse task
+   (`docs/WAREHOUSE_BENCHMARK.md`): at 60 orders SKILL.state ties or beats ReAct on accuracy (Sonnet 1.00 vs 0.98) once
+   the fixed per-call overhead is trimmed, and costs fewer tokens; at 300 orders Kimi K3 holds 0.88 with a flat
+   5.7K-token call. Still missing: a 300-order ReAct run (expensive), and the paper's other environments.
 4. **Skill migration events** (brief §14) — a versioned `skill.migrated` event instead of refusal.
 5. **Deterministic merge for concurrent writers** (paper §multi-agent) — leases or CRDT-style merges
    before subagents (stage 6).
