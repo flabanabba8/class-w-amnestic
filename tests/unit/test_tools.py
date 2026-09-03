@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from skillstate.config import RuntimeConfig, ShellPolicy
-from skillstate.tools import default_registry
-from skillstate.tools.base import ToolContext, ToolError
+from mnestic.config import RuntimeConfig, ShellPolicy
+from mnestic.tools import default_registry
+from mnestic.tools.base import ToolContext, ToolError
 
 
 @pytest.fixture
@@ -62,11 +62,11 @@ async def test_tool_failures_are_results_not_exceptions(ctx: ToolContext):
 
 
 async def test_search_skips_hidden_and_binary(ctx: ToolContext, workspace: Path):
-    (workspace / ".skillstate").mkdir()
-    (workspace / ".skillstate" / "db.sqlite").write_bytes(b"PORT\0\0\0binary")
+    (workspace / ".mnestic").mkdir()
+    (workspace / ".mnestic" / "db.sqlite").write_bytes(b"PORT\0\0\0binary")
     (workspace / "blob.bin").write_bytes(b"\0PORT\0")
     r = await default_registry().execute("search_text", {"pattern": "PORT", "path": "."}, ctx)
-    assert r.ok and ".skillstate" not in r.output and "blob.bin" not in r.output and "src/app.py" in r.output
+    assert r.ok and ".mnestic" not in r.output and "blob.bin" not in r.output and "src/app.py" in r.output
 
 
 async def test_shell_allowlist(ctx: ToolContext):

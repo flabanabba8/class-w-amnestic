@@ -10,10 +10,10 @@ from pydantic_ai import models
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, ToolCallPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from skillstate.agent.pydantic_ai_reasoner import PydanticAIReasoner
-from skillstate.graph.runtime import Runtime
-from skillstate.models.state import RunStatus
-from skillstate.tools import default_registry
+from mnestic.agent.pydantic_ai_reasoner import PydanticAIReasoner
+from mnestic.graph.runtime import Runtime
+from mnestic.models.state import RunStatus
+from mnestic.tools import default_registry
 
 models.ALLOW_MODEL_REQUESTS = False
 
@@ -99,9 +99,9 @@ async def test_provider_exception_is_captured(config, store, simple_skill):
         raise ConnectionError("provider down")
 
     reasoner = PydanticAIReasoner(FunctionModel(fn), retries=0)
-    from skillstate.context.builder import ContextBuilder
-    from skillstate.models.observation import Observation, ObservationKind
-    from skillstate.models.state import ExecutionState, Objective
+    from mnestic.context.builder import ContextBuilder
+    from mnestic.models.observation import Observation, ObservationKind
+    from mnestic.models.state import ExecutionState, Objective
 
     ctx = ContextBuilder().build(simple_skill, ExecutionState(run_id="r", skill_id="s", skill_version="1", objective=Objective(statement="o")),
                                  Observation(run_id="r", step=0, kind=ObservationKind.TASK_INPUT, source="task", content="x"))

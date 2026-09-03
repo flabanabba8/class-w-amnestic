@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from skillstate.benchmarks.scaling import ReActContextSimulator, marker, run_benchmark
+from mnestic.benchmarks.scaling import ReActContextSimulator, marker, run_benchmark
 
 pytestmark = pytest.mark.benchmark
 
@@ -12,7 +12,7 @@ pytestmark = pytest.mark.benchmark
 def test_context_is_bounded_and_nothing_leaks(tmp_path):
     r = run_benchmark(steps=300, observation_chars=400, db_path=tmp_path / "b.db")
     assert r["outcome"] == "completed" and r["steps"] == 301
-    s = r["skillstate"]
+    s = r["mnestic"]
     late = r["series"][150:]
     assert max(late) - min(late) <= 0.05 * max(late), "context size drifts in the second half of the run"
     assert s["last"] < s["first"] * 1.5, "context grew substantially over the run"
@@ -25,13 +25,13 @@ def test_context_is_bounded_and_nothing_leaks(tmp_path):
 
 def test_full_marker_scan_on_short_run(tmp_path):
     """Every earlier marker checked against every later context (the in-benchmark scan is windowed)."""
-    from skillstate.agent.reasoner import ScriptedReasoner
-    from skillstate.benchmarks.scaling import BENCH_SKILL, FixedObservationTool, benchmark_script
-    from skillstate.config import RuntimeConfig
-    from skillstate.graph.runtime import Runtime
-    from skillstate.storage.db import Database
-    from skillstate.storage.store import Store
-    from skillstate.tools.base import ToolRegistry
+    from mnestic.agent.reasoner import ScriptedReasoner
+    from mnestic.benchmarks.scaling import BENCH_SKILL, FixedObservationTool, benchmark_script
+    from mnestic.config import RuntimeConfig
+    from mnestic.graph.runtime import Runtime
+    from mnestic.storage.db import Database
+    from mnestic.storage.store import Store
+    from mnestic.tools.base import ToolRegistry
 
     contexts = []
 

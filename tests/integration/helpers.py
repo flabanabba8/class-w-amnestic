@@ -8,11 +8,11 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
-from skillstate.benchmarks.scripts import observation_attr, observation_text, parse_state
-from skillstate.context.builder import ModelContext
-from skillstate.storage.db import Database
-from skillstate.storage.store import Store
-from skillstate.tools.base import Tool, ToolContext, ToolResult
+from mnestic.benchmarks.scripts import observation_attr, observation_text, parse_state
+from mnestic.context.builder import ModelContext
+from mnestic.storage.db import Database
+from mnestic.storage.store import Store
+from mnestic.tools.base import Tool, ToolContext, ToolResult
 
 
 class SimulatedCrash(BaseException):

@@ -61,7 +61,7 @@ actionable feedback or triggers explicit archived compaction. See
 ## I7 — Context is inspectable
 
 Every model call stores the exact rendered context (`model_calls.context_json`).
-`skillstate inspect-context <run>` shows it. The rendered text has
+`mnestic inspect-context <run>` shows it. The rendered text has
 unambiguous section delimiters:
 
 ```

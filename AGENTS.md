@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Class-W Mnestic (Python package `skillstate`) is a long-horizon autonomous agent runtime implementing the
+Class-W Mnestic (Python package `mnestic`) is a long-horizon autonomous agent runtime implementing the
 **SKILL.state** architecture (Badhe, Tiwari, Chung — "SKILL.state: Scalable
 Long-Horizon Agent Skills", arXiv:2608.26263). The model reasons over a small,
 explicit, validated **Execution State** rather than an ever-growing chat
@@ -22,7 +22,7 @@ touching anything in `context/`, `agent/`, or `graph/`.
    later step. PydanticAI may produce messages *within* one step (e.g. output
    validation retries); those are archived after the step and then discarded.
 2. Every ordinary reasoning step receives exactly four things, assembled by
-   `skillstate.context.ContextBuilder`:
+   `mnestic.context.ContextBuilder`:
    - the immutable **Skill Specification**,
    - the canonical **ExecutionState** (current version),
    - the **newest Observation**,
@@ -58,7 +58,7 @@ or does it turn the agent back into a giant conversation?"
 ## Repository structure
 
 ```
-src/skillstate/
+src/mnestic/
   config.py          RuntimeConfig (env + CLI), StateLimits, ShellPolicy
   models/            Pydantic domain models (skill, state, patch, decision, observation, action, archive)
   state/             patch application, status transitions, size limits/compaction
@@ -70,7 +70,7 @@ src/skillstate/
   tools/             typed tool abstraction, workspace-restricted filesystem tools, shell policy, memory tool
   skills/            skill loading (skill.yaml + SKILL.md), registry
   observability/     structured logging, metrics, optional logfire
-  cli/               `skillstate` CLI
+  cli/               `mnestic` CLI
   benchmarks/        context-scaling benchmark + ReAct baseline simulator
 skills/              example skills (versioned directories)
 tests/unit|integration|benchmarks
@@ -85,16 +85,16 @@ uv run pytest                   # full suite (no API keys needed)
 uv run pytest tests/benchmarks  # scaling benchmark tests
 uv run ruff check src tests     # lint
 uv run mypy src                 # types
-uv run skillstate doctor        # environment check
-uv run skillstate run <skill> --task "..." --model mock
-uv run skillstate inspect-context <run-id> [--step N]
+uv run mnestic doctor        # environment check
+uv run mnestic run <skill> --task "..." --model mock
+uv run mnestic inspect-context <run-id> [--step N]
 uv run python scripts/benchmark.py   # writes docs/BENCHMARK_REPORT.md
 ```
 
 ## Testing requirements
 
 - The full suite must pass without network access or API credentials.
-  Set `SKILLSTATE_LIVE_TESTS=1` plus provider credentials to enable optional
+  Set `MNESTIC_LIVE_TESTS=1` plus provider credentials to enable optional
   live tests (`tests/integration/test_live_model.py`).
 - Any change to `context/` must keep `tests/unit/test_context_builder.py`
   and `tests/benchmarks/test_context_scaling.py` passing; these are the
@@ -107,7 +107,7 @@ uv run python scripts/benchmark.py   # writes docs/BENCHMARK_REPORT.md
 
 ## Database migration policy
 
-- Schema lives in `src/skillstate/storage/migrations.py` as an ordered list of
+- Schema lives in `src/mnestic/storage/migrations.py` as an ordered list of
   numbered migrations. Never edit an applied migration; add a new one.
 - Every migration is applied inside a transaction and recorded in
   `schema_migrations`.

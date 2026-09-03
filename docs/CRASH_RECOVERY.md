@@ -1,6 +1,6 @@
 # Crash recovery and resume
 
-`skillstate resume <run-id>` rebuilds the runtime from SQLite alone: the current
+`mnestic resume <run-id>` rebuilds the runtime from SQLite alone: the current
 `ExecutionState`, the latest `steps` row (phase + pointers) and the pending observation.
 No transcript exists to replay.
 

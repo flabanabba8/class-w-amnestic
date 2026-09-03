@@ -21,4 +21,4 @@ constraints:
 phases: [survey, investigate, synthesize, report, done]
 initial_phase: survey
 default_max_steps: 60
-reasoner_script: skillstate.benchmarks.scripts:codebase_research_script
+reasoner_script: mnestic.benchmarks.scripts:codebase_research_script

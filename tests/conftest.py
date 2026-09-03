@@ -9,19 +9,19 @@ from typing import Any
 
 import pytest
 
-from skillstate.agent.reasoner import ScriptedReasoner
-from skillstate.config import RuntimeConfig, ShellPolicy, StateLimits
-from skillstate.context.builder import ModelContext
-from skillstate.graph.runtime import Runtime
-from skillstate.memory.retrieval import ArchiveRetriever
-from skillstate.models.decision import AgentDecision
-from skillstate.models.skill import SkillSpecification
-from skillstate.models.state import ExecutionState, Objective, RunStatus
-from skillstate.skills.loader import SkillRegistry
-from skillstate.storage.db import Database
-from skillstate.storage.store import Store
-from skillstate.tools import default_registry
-from skillstate.tools.base import ToolRegistry
+from mnestic.agent.reasoner import ScriptedReasoner
+from mnestic.config import RuntimeConfig, ShellPolicy, StateLimits
+from mnestic.context.builder import ModelContext
+from mnestic.graph.runtime import Runtime
+from mnestic.memory.retrieval import ArchiveRetriever
+from mnestic.models.decision import AgentDecision
+from mnestic.models.skill import SkillSpecification
+from mnestic.models.state import ExecutionState, Objective, RunStatus
+from mnestic.skills.loader import SkillRegistry
+from mnestic.storage.db import Database
+from mnestic.storage.store import Store
+from mnestic.tools import default_registry
+from mnestic.tools.base import ToolRegistry
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = REPO_ROOT / "skills"

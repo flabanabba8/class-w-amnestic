@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from skillstate.benchmarks.scaling import render_report, run_benchmark
+from mnestic.benchmarks.scaling import render_report, run_benchmark
 
 steps = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
 started = time.time()

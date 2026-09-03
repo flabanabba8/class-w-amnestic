@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from skillstate.benchmarks.scripts import codebase_research_script, counter_script
-from skillstate.models.state import RunStatus
-from skillstate.skills.loader import SkillRegistry
-from skillstate.storage.store import Store
+from mnestic.benchmarks.scripts import codebase_research_script, counter_script
+from mnestic.models.state import RunStatus
+from mnestic.skills.loader import SkillRegistry
+from mnestic.storage.store import Store
 
 
 async def test_deterministic_counter_completes(make_runtime, registry: SkillRegistry, store: Store):
@@ -42,7 +42,7 @@ async def test_codebase_research_uses_tools_and_writes_report(make_runtime, regi
 async def test_missing_required_tool_is_rejected_at_start(make_runtime, simple_skill):
     import pytest
 
-    from skillstate.tools.base import ToolRegistry
+    from mnestic.tools.base import ToolRegistry
 
     rt = make_runtime(lambda c: None, tools=ToolRegistry())
     with pytest.raises(ValueError, match="requires unavailable tools"):

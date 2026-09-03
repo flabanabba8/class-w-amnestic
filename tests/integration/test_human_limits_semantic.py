@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from skillstate.config import StateLimits
-from skillstate.memory.semantic import SemanticMemoryStore
-from skillstate.models.archive import EventType, MemoryQuery
-from skillstate.models.state import RunStatus
+from mnestic.config import StateLimits
+from mnestic.memory.semantic import SemanticMemoryStore
+from mnestic.models.archive import EventType, MemoryQuery
+from mnestic.models.state import RunStatus
 from tests.integration.helpers import complete, decision, obs_info
 
 
@@ -63,7 +63,7 @@ async def test_state_limits_reject_then_spill(make_runtime, store, simple_skill,
     assert len(compactions) == 2 and {c.payload["item"]["id"] for c in compactions} == {"h0", "h1"}
     spilled = [e for e in store.list_events(out.run_id, limit=500, event_type=EventType.PATCH_APPLIED.value) if e.payload.get("kind") == "fact"]
     assert spilled[0].payload["item"]["statement"] == "fact number 0"
-    from skillstate.memory.retrieval import ArchiveRetriever
+    from mnestic.memory.retrieval import ArchiveRetriever
 
     assert ArchiveRetriever(store).retrieve(out.run_id, MemoryQuery(query_type="search", text="fact number 0")).total_matches >= 1
 
@@ -89,8 +89,8 @@ async def test_continue_loop_guard(make_runtime, store, simple_skill, config):
 
 
 def test_semantic_memory_promotion_is_explicit_and_audited(store, simple_skill, base_state):
-    from skillstate.models.archive import RunMetadata
-    from skillstate.models.common import utcnow
+    from mnestic.models.archive import RunMetadata
+    from mnestic.models.common import utcnow
 
     with store.transaction():
         store.upsert_skill(simple_skill)

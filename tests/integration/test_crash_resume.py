@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from skillstate.agent.reasoner import ScriptedReasoner
-from skillstate.graph.runtime import Runtime
-from skillstate.models.state import RunStatus
-from skillstate.storage.db import Database
-from skillstate.storage.store import Store
-from skillstate.tools import default_registry
+from mnestic.agent.reasoner import ScriptedReasoner
+from mnestic.graph.runtime import Runtime
+from mnestic.models.state import RunStatus
+from mnestic.storage.db import Database
+from mnestic.storage.store import Store
+from mnestic.tools import default_registry
 from tests.integration.helpers import CrashingTool, PhaseCrashStore, SimulatedCrash, complete, obs_info, tool
 
 
@@ -127,7 +127,7 @@ async def test_concurrent_writer_pauses_run_cleanly(config, store):
 
 
 def config_skill():
-    from skillstate.models.skill import SkillSpecification
+    from mnestic.models.skill import SkillSpecification
 
     return SkillSpecification(skill_id="crash-skill", name="Crash skill", version="1", description="d",
                               required_tools=["list_directory", "read_text_file"], instructions="i", default_max_steps=50)

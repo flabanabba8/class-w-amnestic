@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-skillstate = "skillstate.cli.main:main"
+mnestic = "mnestic.cli.main:main"
 
 [build-system]
 requires = ["uv_build>=0.12.9,<0.13.0"]
@@ -31,8 +31,8 @@ dev = [
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-markers = ["live: requires model credentials (SKILLSTATE_LIVE_TESTS=1)", "benchmark: slow scaling benchmarks"]
-filterwarnings = ["error::DeprecationWarning:skillstate.*"]
+markers = ["live: requires model credentials (MNESTIC_LIVE_TESTS=1)", "benchmark: slow scaling benchmarks"]
+filterwarnings = ["error::DeprecationWarning:mnestic.*"]
 
 [tool.ruff]
 line-length = 140
@@ -45,7 +45,7 @@ ignore = ["S101", "S603", "S607", "E501", "RUF012", "SIM108", "B008", "S608", "R
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S", "B", "SIM", "RUF059"]
-"src/skillstate/cli/main.py" = ["E702"]
+"src/mnestic/cli/main.py" = ["E702"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -55,4 +55,4 @@ ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 
 [tool.uv.build-backend]
-module-name = "skillstate"
+module-name = "mnestic"

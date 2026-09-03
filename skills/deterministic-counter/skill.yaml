@@ -11,4 +11,4 @@ completion_criteria:
 phases: [start, counting, done]
 initial_phase: start
 default_max_steps: 2000
-reasoner_script: skillstate.benchmarks.scripts:counter_script
+reasoner_script: mnestic.benchmarks.scripts:counter_script

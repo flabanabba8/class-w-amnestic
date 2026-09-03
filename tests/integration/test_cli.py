@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from skillstate.cli.main import main
+from mnestic.cli.main import main
 from tests.conftest import SKILLS_DIR
 
 

@@ -3,7 +3,7 @@
 This runtime executes model-chosen actions. It is designed to be *inspectable and
 bounded*, not to be safe for unattended execution with elevated privileges. Do not run it
 as root, on machines holding secrets you cannot afford to expose, or with
-`SKILLSTATE_SHELL_MODE=unrestricted` outside a disposable sandbox.
+`MNESTIC_SHELL_MODE=unrestricted` outside a disposable sandbox.
 
 ## Boundaries implemented
 
@@ -42,5 +42,5 @@ as root, on machines holding secrets you cannot afford to expose, or with
 
 Run in a container or VM with a throwaway workspace; keep the default allowlist shell or
 disable it; keep the SQLite database outside the workspace (the default
-`.skillstate/` directory is skipped by `search_text`, but a workspace-level tool can still
+`.mnestic/` directory is skipped by `search_text`, but a workspace-level tool can still
 read it); review `events`/`inspect-context` before trusting a run's report.

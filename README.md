@@ -2,7 +2,7 @@
 
 *In SCP lore, a Class-W mnestic grants permanent immunity to forgetting. This runtime is built on the same premise: the agent never truly loses what it has seen — it just stops carrying all of it around.*
 
-**Class-W Mnestic** (Python package and CLI: `skillstate`) is a long-horizon autonomous agent runtime built on
+**Class-W Mnestic** (Python package and CLI: `mnestic`) is a long-horizon autonomous agent runtime built on
 **PydanticAI**, **pydantic-graph**, **Pydantic** and **SQLite**, implementing the
 architecture of *SKILL.state: Scalable Long-Horizon Agent Skills*
 (Badhe, Tiwari, Chung — [arXiv:2608.26263](https://arxiv.org/abs/2608.26263)).
@@ -70,7 +70,7 @@ flowchart LR
 ```
 
 The lifecycle is a pydantic-graph state machine
-(`uv run skillstate graph` renders it):
+(`uv run mnestic graph` renders it):
 
 ```
 Enter → BuildContext → Reason → ApplyDecision → { RetrieveMemory | ExecuteAction | AwaitHuman | Finalize }
@@ -93,19 +93,19 @@ More in `docs/ARCHITECTURE.md`, `docs/STATE_MODEL.md`, `docs/CONTEXT_INVARIANTS.
 
 ```bash
 uv sync
-uv run skillstate doctor
-uv run skillstate skills list
+uv run mnestic doctor
+uv run mnestic skills list
 
 # deterministic example, no model needed
-uv run skillstate run deterministic-counter --task "count to 5" --model mock
+uv run mnestic run deterministic-counter --task "count to 5" --model mock
 
 # realistic multi-step research skill, scripted (mock) reasoner
 mkdir -p /tmp/demo/src && printf 'PORT = 8000\n' > /tmp/demo/src/app.py
-uv run skillstate run codebase-research --task 'Where is `PORT` configured?' --model mock --workspace /tmp/demo
+uv run mnestic run codebase-research --task 'Where is `PORT` configured?' --model mock --workspace /tmp/demo
 
 # with a real model (any PydanticAI provider string)
 export OPENAI_API_KEY=...            # or ANTHROPIC_API_KEY, etc.
-uv run skillstate run codebase-research --task 'Where is `PORT` configured?' --model openai:gpt-4o-mini --workspace /tmp/demo
+uv run mnestic run codebase-research --task 'Where is `PORT` configured?' --model openai:gpt-4o-mini --workspace /tmp/demo
 ```
 
 A local OpenAI-compatible server works too: `OPENAI_BASE_URL=http://localhost:8080/v1 OPENAI_API_KEY=x --model openai:my-model`.
@@ -113,7 +113,7 @@ A local OpenAI-compatible server works too: `OPENAI_BASE_URL=http://localhost:80
 ## Example run
 
 ```
-$ uv run skillstate run codebase-research --task 'Where is `PORT` configured?' --model mock --workspace /tmp/demo --json
+$ uv run mnestic run codebase-research --task 'Where is `PORT` configured?' --model mock --workspace /tmp/demo --json
 {
   "run_id": "run_df94610f02909e01",
   "status": "completed",
@@ -132,23 +132,23 @@ $ uv run skillstate run codebase-research --task 'Where is `PORT` configured?' -
 ## Inspecting state
 
 ```bash
-uv run skillstate status                      # all runs
-uv run skillstate status <run-id>             # run metadata + metrics
-uv run skillstate state <run-id> --model-view # EXACTLY what the model sees as state
-uv run skillstate state <run-id> --version 3  # any historical version
-uv run skillstate history <run-id>            # every version, the patch that produced it, rejected patches
-uv run skillstate diff <run-id> 3 7           # structural diff between two versions
+uv run mnestic status                      # all runs
+uv run mnestic status <run-id>             # run metadata + metrics
+uv run mnestic state <run-id> --model-view # EXACTLY what the model sees as state
+uv run mnestic state <run-id> --version 3  # any historical version
+uv run mnestic history <run-id>            # every version, the patch that produced it, rejected patches
+uv run mnestic diff <run-id> 3 7           # structural diff between two versions
 ```
 
 ## Inspecting the archive and the model context
 
 ```bash
-uv run skillstate events <run-id> [--type tool.finished] [--step 4] [--payload]
-uv run skillstate memory search <run-id> "server_port"            # FTS5 keyword search
-uv run skillstate memory search <run-id> --type state_history
-uv run skillstate inspect-context <run-id> --step 4               # the exact context sent at step 4
-uv run skillstate inspect-context <run-id> --next                 # what WOULD be sent next
-uv run skillstate inspect-context <run-id> --step 4 --sections    # section by section
+uv run mnestic events <run-id> [--type tool.finished] [--step 4] [--payload]
+uv run mnestic memory search <run-id> "server_port"            # FTS5 keyword search
+uv run mnestic memory search <run-id> --type state_history
+uv run mnestic inspect-context <run-id> --step 4               # the exact context sent at step 4
+uv run mnestic inspect-context <run-id> --next                 # what WOULD be sent next
+uv run mnestic inspect-context <run-id> --step 4 --sections    # section by section
 ```
 
 `inspect-context` prints the stored `ModelContext` (instructions + prompt) byte-for-byte
@@ -158,8 +158,8 @@ as it was handed to PydanticAI, with `<skill_specification>`, `<execution_state>
 ## Resuming a run
 
 ```bash
-uv run skillstate resume <run-id>                       # after a crash, pause, or --max-steps
-uv run skillstate resume <run-id> --input "use staging" # answer a RequestHumanInput
+uv run mnestic resume <run-id>                       # after a crash, pause, or --max-steps
+uv run mnestic resume <run-id> --input "use staging" # answer a RequestHumanInput
 ```
 
 Resume reconstructs everything from SQLite: the current state, the latest step's
@@ -175,14 +175,14 @@ exact guarantees (tool execution is *at-least-once*: a crash mid-tool yields an
 uv run pytest                 # 83 tests, no credentials, ~7 s
 uv run pytest tests/benchmarks
 uv run ruff check src tests && uv run mypy src
-SKILLSTATE_LIVE_TESTS=1 SKILLSTATE_MODEL=openai:gpt-4o-mini uv run pytest tests/integration/test_live_model.py
+MNESTIC_LIVE_TESTS=1 MNESTIC_MODEL=openai:gpt-4o-mini uv run pytest tests/integration/test_live_model.py
 ```
 
 ## Benchmark
 
 ```bash
 uv run python scripts/benchmark.py 1000    # writes docs/BENCHMARK_REPORT.md
-uv run skillstate benchmark --steps 500
+uv run mnestic benchmark --steps 500
 ```
 
 The benchmark runs the real runtime with a scripted reasoner and a mock tool that emits a
@@ -192,19 +192,19 @@ ReAct-style transcript simulator provides the contrast.
 
 ## Configuration
 
-Environment (`SKILLSTATE_*`) or CLI flags:
+Environment (`MNESTIC_*`) or CLI flags:
 
 | variable | default | meaning |
 |---|---|---|
-| `SKILLSTATE_DB_PATH` | `.skillstate/skillstate.db` | SQLite file (WAL, foreign keys) |
-| `SKILLSTATE_WORKSPACE` | cwd | tool sandbox root |
-| `SKILLSTATE_SKILLS_DIRS` | `skills` | `os.pathsep`-separated skill roots |
-| `SKILLSTATE_MODEL` | `mock` | PydanticAI model string, e.g. `anthropic:claude-sonnet-4-5` |
-| `SKILLSTATE_OUTPUT_MODE` | `tool` | `tool` \| `native` \| `prompted` structured-output mode |
-| `SKILLSTATE_MODEL_RETRIES` | `2` | in-step output validation retries |
-| `SKILLSTATE_SHELL_MODE` | `allowlist` | `disabled` \| `allowlist` \| `unrestricted` |
-| `SKILLSTATE_LOG_LEVEL` / `SKILLSTATE_LOG_JSON` | `INFO` / off | structured logging |
-| `SKILLSTATE_LOGFIRE` | off | enable Pydantic Logfire if installed |
+| `MNESTIC_DB_PATH` | `.mnestic/mnestic.db` | SQLite file (WAL, foreign keys) |
+| `MNESTIC_WORKSPACE` | cwd | tool sandbox root |
+| `MNESTIC_SKILLS_DIRS` | `skills` | `os.pathsep`-separated skill roots |
+| `MNESTIC_MODEL` | `mock` | PydanticAI model string, e.g. `anthropic:claude-sonnet-4-5` |
+| `MNESTIC_OUTPUT_MODE` | `tool` | `tool` \| `native` \| `prompted` structured-output mode |
+| `MNESTIC_MODEL_RETRIES` | `2` | in-step output validation retries |
+| `MNESTIC_SHELL_MODE` | `allowlist` | `disabled` \| `allowlist` \| `unrestricted` |
+| `MNESTIC_LOG_LEVEL` / `MNESTIC_LOG_JSON` | `INFO` / off | structured logging |
+| `MNESTIC_LOGFIRE` | off | enable Pydantic Logfire if installed |
 
 State-size limits (`StateLimits`) and the shell policy are in `config.py`.
 

@@ -4,7 +4,7 @@ Current development state only. Git history is the diary.
 
 ## Objective
 
-v1 SKILL.state runtime (`skillstate`): validated, bounded-context long-horizon agent
+v1 SKILL.state runtime (`mnestic`): validated, bounded-context long-horizon agent
 loop on PydanticAI + pydantic-graph + SQLite. **Status: v0.1.0 complete; all acceptance
 criteria in the original brief met (see docs/AUDIT.md).**
 
@@ -44,6 +44,6 @@ PERSISTENCE, MEMORY, CONTEXT_INVARIANTS, CRASH_RECOVERY, SECURITY, IMPLEMENTATIO
 
 ## Next actions
 
-1. Try a live model end-to-end (`SKILLSTATE_LIVE_TESTS=1`) and tune the output contract wording from real decisions.
+1. Try a live model end-to-end (`MNESTIC_LIVE_TESTS=1`) and tune the output contract wording from real decisions.
 2. Add `runs.lease_*` migration for cooperative multi-process resume.
 3. Stage 3+: semantic retriever behind `Retriever`; richer tools; MCP; subagents (see docs/ARCHITECTURE.md roadmap).

@@ -3,10 +3,10 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from skillstate.models.decision import AgentDecision
-from skillstate.models.patch import StatePatch
-from skillstate.models.skill import SkillSpecification
-from skillstate.models.state import ExecutionState, Hypothesis, Objective, RunStatus, VerifiedFact
+from mnestic.models.decision import AgentDecision
+from mnestic.models.patch import StatePatch
+from mnestic.models.skill import SkillSpecification
+from mnestic.models.state import ExecutionState, Hypothesis, Objective, RunStatus, VerifiedFact
 
 
 def _state(**kw):

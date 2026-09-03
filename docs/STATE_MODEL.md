@@ -1,6 +1,6 @@
 # State model
 
-`ExecutionState` (`src/skillstate/models/state.py`) is the canonical operational memory.
+`ExecutionState` (`src/mnestic/models/state.py`) is the canonical operational memory.
 
 ```
 ExecutionState

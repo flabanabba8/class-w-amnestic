@@ -1,7 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
-.skillstate/
+.mnestic/
 *.db
 *.db-wal
 *.db-shm

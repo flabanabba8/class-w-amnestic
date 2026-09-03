@@ -6,10 +6,10 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
-from skillstate.models.archive import EventType
-from skillstate.models.state import RunStatus
-from skillstate.tools import default_registry
-from skillstate.tools.base import Tool, ToolContext, ToolResult
+from mnestic.models.archive import EventType
+from mnestic.models.state import RunStatus
+from mnestic.tools import default_registry
+from mnestic.tools.base import Tool, ToolContext, ToolResult
 from tests.integration.helpers import complete, decision, obs_info, tool
 
 

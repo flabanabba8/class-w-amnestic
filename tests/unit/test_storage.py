@@ -4,16 +4,16 @@ from pathlib import Path
 
 import pytest
 
-from skillstate.models.archive import EventType, RunMetadata
-from skillstate.models.common import utcnow
-from skillstate.models.observation import Observation, ObservationKind
-from skillstate.models.patch import StatePatch
-from skillstate.models.skill import SkillSpecification
-from skillstate.models.state import ExecutionState
-from skillstate.state.apply import apply_patch
-from skillstate.storage.db import Database
-from skillstate.storage.migrations import current_schema_version
-from skillstate.storage.store import StaleWriteError, Store
+from mnestic.models.archive import EventType, RunMetadata
+from mnestic.models.common import utcnow
+from mnestic.models.observation import Observation, ObservationKind
+from mnestic.models.patch import StatePatch
+from mnestic.models.skill import SkillSpecification
+from mnestic.models.state import ExecutionState
+from mnestic.state.apply import apply_patch
+from mnestic.storage.db import Database
+from mnestic.storage.migrations import current_schema_version
+from mnestic.storage.store import StaleWriteError, Store
 
 
 def _seed(store: Store, skill: SkillSpecification, state: ExecutionState) -> None:

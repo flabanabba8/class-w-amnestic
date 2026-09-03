@@ -50,7 +50,7 @@ size may not.
 
 `semantic_memories` holds curated cross-run knowledge (machine properties, project
 conventions, user preferences). Nothing is promoted automatically: promotion happens via
-`SemanticMemoryStore.promote()` / `skillstate semantic promote`, records who promoted it
+`SemanticMemoryStore.promote()` / `mnestic semantic promote`, records who promoted it
 and which archive events support it, and writes a `semantic.promoted` event into the source
 run. Agents reach it through `MemoryQuery(query_type="semantic")`; it is not injected by
 default either.

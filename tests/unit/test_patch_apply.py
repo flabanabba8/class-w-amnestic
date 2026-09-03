@@ -5,10 +5,10 @@ import copy
 import pytest
 from pydantic import ValidationError
 
-from skillstate.config import StateLimits
-from skillstate.models.patch import StatePatch
-from skillstate.models.state import ExecutionState, RunStatus
-from skillstate.state.apply import PatchRejected, StaleStateError, apply_patch, state_size_bytes
+from mnestic.config import StateLimits
+from mnestic.models.patch import StatePatch
+from mnestic.models.state import ExecutionState, RunStatus
+from mnestic.state.apply import PatchRejected, StaleStateError, apply_patch, state_size_bytes
 
 
 def patch(v: int, *ops: dict) -> StatePatch:

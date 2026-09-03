@@ -6,15 +6,15 @@ import ast
 from datetime import UTC, datetime
 from pathlib import Path
 
-from skillstate.context.builder import SECTION_EVIDENCE, SECTION_OBSERVATION, SECTION_SKILL, SECTION_STATE, ContextBuilder, ToolSpec
-from skillstate.models.archive import MemoryQuery, MemoryResult, RetrievedEvent
-from skillstate.models.observation import Observation, ObservationKind
-from skillstate.models.patch import StatePatch
-from skillstate.models.skill import SkillSpecification
-from skillstate.models.state import ExecutionState
-from skillstate.state.apply import apply_patch
+from mnestic.context.builder import SECTION_EVIDENCE, SECTION_OBSERVATION, SECTION_SKILL, SECTION_STATE, ContextBuilder, ToolSpec
+from mnestic.models.archive import MemoryQuery, MemoryResult, RetrievedEvent
+from mnestic.models.observation import Observation, ObservationKind
+from mnestic.models.patch import StatePatch
+from mnestic.models.skill import SkillSpecification
+from mnestic.models.state import ExecutionState
+from mnestic.state.apply import apply_patch
 
-SRC = Path(__file__).resolve().parents[2] / "src" / "skillstate" / "context"
+SRC = Path(__file__).resolve().parents[2] / "src" / "mnestic" / "context"
 
 
 def _obs(step: int, content: str, kind: ObservationKind = ObservationKind.TOOL_RESULT) -> Observation:
@@ -32,7 +32,7 @@ def test_context_module_has_no_storage_dependency():
             elif isinstance(node, ast.ImportFrom) and node.module:
                 names = [node.module]
             for n in names:
-                assert not n.startswith(("skillstate.storage", "skillstate.memory", "skillstate.graph", "sqlite3")), f"{py}: imports {n}"
+                assert not n.startswith(("mnestic.storage", "mnestic.memory", "mnestic.graph", "sqlite3")), f"{py}: imports {n}"
 
 
 def test_sections_are_delimited_and_ordered(simple_skill: SkillSpecification, base_state: ExecutionState):

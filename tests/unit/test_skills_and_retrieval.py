@@ -4,15 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from skillstate.memory.retrieval import ArchiveRetriever
-from skillstate.models.archive import EventType, MemoryQuery, RunMetadata
-from skillstate.models.common import utcnow
-from skillstate.models.patch import StatePatch
-from skillstate.models.skill import SkillSpecification
-from skillstate.models.state import ArtifactReference, ExecutionState
-from skillstate.skills.loader import SkillLoadError, SkillRegistry, load_skill_dir
-from skillstate.state.apply import apply_patch
-from skillstate.storage.store import Store
+from mnestic.memory.retrieval import ArchiveRetriever
+from mnestic.models.archive import EventType, MemoryQuery, RunMetadata
+from mnestic.models.common import utcnow
+from mnestic.models.patch import StatePatch
+from mnestic.models.skill import SkillSpecification
+from mnestic.models.state import ArtifactReference, ExecutionState
+from mnestic.skills.loader import SkillLoadError, SkillRegistry, load_skill_dir
+from mnestic.state.apply import apply_patch
+from mnestic.storage.store import Store
 
 
 def test_example_skills_load(registry: SkillRegistry):

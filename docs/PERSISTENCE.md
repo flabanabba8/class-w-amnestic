@@ -1,6 +1,6 @@
 # Persistence
 
-SQLite is a first-class component (`src/skillstate/storage/`). Settings: WAL journal,
+SQLite is a first-class component (`src/mnestic/storage/`). Settings: WAL journal,
 `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=30s`, explicit reentrant
 transactions (`BEGIN IMMEDIATE … COMMIT/ROLLBACK`).
 
