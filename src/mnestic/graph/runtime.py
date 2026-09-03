@@ -78,8 +78,11 @@ class Runtime:
 
     async def start(
         self, skill: SkillSpecification, task_input: str, *, run_id: str | None = None, max_steps: int | None = None,
-        workspace_root: Path | None = None,
+        workspace_root: Path | None = None, initial_ops: list[dict[str, Any]] | None = None,
     ) -> RunOutcome:
+        """Start a run. ``initial_ops`` is an optional runtime-authored StatePatch (e.g. the task's known initial
+        state, Σ₀ in the paper) applied and archived before the first model call, so the model does not have to
+        transcribe it from the task input."""
         run_id = run_id or new_id("run")
         workspace = (workspace_root or self.config.resolved_workspace()).resolve()
         missing = self.tools.missing(skill.required_tools)
@@ -107,7 +110,19 @@ class Runtime:
             obs = Observation(run_id=run_id, step=0, kind=ObservationKind.TASK_INPUT, source="task", content=task_input[: self.config.max_observation_chars],
                               truncated=len(task_input) > self.config.max_observation_chars, full_length=len(task_input), event_id=ev.event_id)
             self.store.save_observation(obs, task_input)
-            self.store.create_step(run_id, 0, observation_id=obs.id, retrieved=None, state_version_before=0)
+            if initial_ops:
+                from mnestic.models.patch import StatePatch
+                from mnestic.state.apply import apply_patch
+
+                patch = StatePatch(expected_state_version=0, ops=initial_ops)  # type: ignore[arg-type]
+                applied = apply_patch(state, patch, limits=self.config.state_limits)
+                patch_id = self.store.record_patch(run_id, 0, patch, status="applied", resulting_version=1, changes=applied.changes)
+                self.store.commit_state(applied.state, expected_version=0, patch_id=patch_id, step=0)
+                self.store.append_event(run_id, 0, EventType.PATCH_APPLIED, f"initial state seeded by the runtime: {'; '.join(applied.changes)[:200]}",
+                                        {"patch_id": patch_id, "ops": len(initial_ops), "changes": applied.changes, "source": "runtime:initial_ops"},
+                                        ref_table="state_patches", ref_id=patch_id)
+                state = applied.state
+            self.store.create_step(run_id, 0, observation_id=obs.id, retrieved=None, state_version_before=state.state_version)
         self.log.info("run created", run_id=run_id, skill=skill.key)
         gstate = self._graph_state(run_id, state, 0, obs, [], max_steps)
         return await self._run_graph(gstate, skill, workspace, BuildContext())

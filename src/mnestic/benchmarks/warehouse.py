@@ -92,12 +92,21 @@ class WarehouseEnv:
     def current_order(self) -> Order | None:
         return self.order_list[self.cursor] if self.cursor < len(self.order_list) else None
 
+    def initial_ops(self) -> list[dict[str, Any]]:
+        """Σ₀: the known starting inventory as state-patch ops (one entity per shelf + capacity)."""
+        ops: list[dict[str, Any]] = [{"op": "set_environment", "key": "capacity", "value": self.capacity},
+                                     {"op": "set_environment", "key": "shelves", "value": len(self.inventory)}]
+        for shelf in self.inventory:
+            ops.append({"op": "set_entity", "name": shelf, "description": self._desc(shelf)})
+        return ops
+
     def initial_observation(self) -> str:
         lines = [f"Warehouse: {self.shelves} shelves ({', '.join(self.inventory)}), capacity {self.capacity} units each.", "Initial contents:"]
         for shelf, items in self.inventory.items():
             lines.append(f"  {shelf}: " + (", ".join(f"{k}={v}" for k, v in sorted(items.items())) or "empty"))
         o = self.current_order()
-        lines += ["", "The warehouse tool will NOT restate contents; track them yourself.", o.text() if o else "no orders"]
+        lines += ["", "The warehouse tool will NOT restate contents; track them yourself (your state already holds this starting inventory).",
+                  o.text() if o else "no orders"]
         return "\n".join(lines)
 
     def act(self, action: str, shelf: str | None, item: str | None, qty: int | None, answer: int | None) -> tuple[bool, str]:
@@ -301,7 +310,8 @@ async def run_skillstate(reasoner: Any, *, orders: int = 60, shelves: int = 12, 
     tools = ToolRegistry()
     tools.register(WarehouseTool(env))
     t0 = time.time()
-    out = await Runtime(cfg, store, reasoner=reasoner, tools=tools).start(WAREHOUSE_SKILL, env.initial_observation(), max_steps=max_steps or orders * 3)
+    out = await Runtime(cfg, store, reasoner=reasoner, tools=tools).start(WAREHOUSE_SKILL, env.initial_observation(), max_steps=max_steps or orders * 3,
+                                                                          initial_ops=env.initial_ops())
     m = store.run_metrics(out.run_id)
     return BenchResult("skillstate", getattr(reasoner, "model_name", "?"), orders, env.score, sum(1 for r in env.log if r["correct"]), out.steps,
                        m["model_calls"] or 0, m["input_tokens"] or 0, m["output_tokens"] or 0, m["max_context_chars"] or 0, time.time() - t0,

@@ -58,3 +58,23 @@ async def test_tool_result_observation_records_request(make_runtime, registry, s
     assert obs[0].data["request"]["arguments"] == {"path": "."}
     ctx = store.get_model_calls(out.run_id, step=1)[0]
     assert 'request=' in __import__("json").loads(ctx["context_json"])["sections"]["latest_observation"].split("\n", 1)[0]
+
+
+async def test_initial_ops_seed_state_before_first_model_call(make_runtime, store, simple_skill):
+    seen = []
+
+    def script(ctx):
+        from mnestic.benchmarks.scripts import parse_state
+
+        seen.append(parse_state(ctx))
+        from tests.integration.helpers import complete
+
+        return complete(ctx)
+
+    rt = make_runtime(script)
+    out = await rt.start(simple_skill, "go", initial_ops=[{"op": "set_entity", "name": "S01", "description": "bolt=2"}, {"op": "set_environment", "key": "capacity", "value": 12}])
+    assert out.status.value == "completed"
+    assert seen[0]["important_entities"] == {"S01": "bolt=2"} and seen[0]["state_version"] == 1
+    assert store.get_state_at_version(out.run_id, 0).important_entities == {}
+    ev = store.list_events(out.run_id, limit=50, event_type="patch.applied")[0]
+    assert ev.payload["source"] == "runtime:initial_ops"
