@@ -34,6 +34,11 @@ class SkillSpecification(BaseModel):
         description="Patch ops this skill uses (e.g. ['set_entity','set_environment','set_observation_summary']). "
         "Prunes the output schema sent to the model; None = the default core set, ['*'] = every op.",
     )
+    allowed_actions: list[str] | None = Field(
+        default=None,
+        description="Action kinds the model may request: subset of ['tool','human_input','continue']. None = all. "
+        "Unattended tasks should omit 'human_input'.",
+    )
     reasoner_script: str | None = Field(
         default=None,
         description="Optional dotted path to a scripted reasoner used with --model mock (deterministic skills).",

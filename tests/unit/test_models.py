@@ -139,3 +139,15 @@ def test_discriminators_are_required_in_model_facing_schema():
     assert "op" in SetPhase.model_json_schema()["required"]
     assert "kind" in ToolAction.model_json_schema()["required"]
     assert "maxLength" not in json.dumps(SetPhase.model_json_schema())
+
+
+def test_allowed_actions_restrict_the_decision_schema():
+    from mnestic.models.decision import decision_type_for
+
+    cls = decision_type_for(["set_phase"], ["tool"])
+    cls.model_validate({"state_patch": {"expected_state_version": 0, "ops": []}, "action": {"kind": "tool", "tool_name": "x", "arguments": {}}})
+    with pytest.raises(ValidationError):
+        cls.model_validate({"state_patch": {"expected_state_version": 0, "ops": []}, "action": {"kind": "human_input", "question": "?"}})
+    assert "human_input" not in json.dumps(cls.model_json_schema())
+    with pytest.raises(ValueError, match="unknown action kinds"):
+        decision_type_for(None, ["teleport"])

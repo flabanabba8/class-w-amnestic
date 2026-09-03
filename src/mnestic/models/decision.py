@@ -80,11 +80,15 @@ def resolve_allowed_ops(allowed_ops: list[str] | None) -> list[str]:
     return list(allowed_ops)
 
 
-def decision_type_for(allowed_ops: list[str] | None) -> type[AgentDecision]:
-    """Build an AgentDecision subclass whose StatePatch accepts only the resolved ``allowed_ops``.
+ACTION_KINDS = ["tool", "human_input", "continue"]
 
-    The runtime still validates and applies with the full ``StatePatch``; this only shrinks the output schema the model
-    is shown (the full union is ~16K chars as sent; a five-op skill needs a third of that).
+
+def decision_type_for(allowed_ops: list[str] | None, allowed_actions: list[str] | None = None) -> type[AgentDecision]:
+    """Build an AgentDecision subclass whose StatePatch accepts only the resolved ``allowed_ops`` and whose ``action``
+    accepts only ``allowed_actions`` kinds (e.g. no ``human_input`` for unattended skills).
+
+    The runtime still validates and applies with the full ``StatePatch``; this only shrinks/restricts the output schema
+    the model is shown (the full union is ~16K chars as sent; a five-op skill needs a third of that).
     """
     allowed_ops = resolve_allowed_ops(allowed_ops)
     from typing import Annotated, Any, Union, get_args
@@ -92,9 +96,18 @@ def decision_type_for(allowed_ops: list[str] | None) -> type[AgentDecision]:
     from pydantic import Field as _Field
     from pydantic import create_model
 
+    from mnestic.models.action import Action
     from mnestic.models.patch import PatchOp, StatePatch
 
     members = [m for m in get_args(get_args(PatchOp)[0]) if m.model_fields["op"].default in set(allowed_ops)]
     op_union: Any = Annotated[Union[tuple(members)], _Field(discriminator="op")]  # noqa: UP007 - runtime union construction  # type: ignore[valid-type]
     patch_cls = create_model("StatePatch", __base__=StatePatch, ops=(list[op_union], _Field(default_factory=list, max_length=50)))  # type: ignore[valid-type]
-    return create_model("AgentDecision", __base__=AgentDecision, state_patch=(patch_cls, ...))  # type: ignore[call-overload,no-any-return]
+    fields: dict[str, Any] = {"state_patch": (patch_cls, ...)}
+    if allowed_actions is not None:
+        unknown = set(allowed_actions) - set(ACTION_KINDS)
+        if unknown:
+            raise ValueError(f"unknown action kinds in allowed_actions: {sorted(unknown)}")
+        kinds = [m for m in get_args(get_args(Action)[0]) if m.model_fields["kind"].default in set(allowed_actions)]
+        action_union: Any = Annotated[Union[tuple(kinds)], _Field(discriminator="kind")] if len(kinds) > 1 else kinds[0]  # noqa: UP007  # type: ignore[valid-type]
+        fields["action"] = (action_union | None, None)
+    return create_model("AgentDecision", __base__=AgentDecision, **fields)  # type: ignore[call-overload,no-any-return]

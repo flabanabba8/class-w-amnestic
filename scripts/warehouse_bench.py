@@ -40,7 +40,7 @@ async def main() -> list:
             extra = json.loads(os.environ.get("MNESTIC_MODEL_SETTINGS", "{}"))
             r = PydanticAIReasoner(a.model, output_mode=os.environ.get("MNESTIC_OUTPUT_MODE", "tool"), retries=2,
                                    model_settings={"timeout": a.timeout, **extra}, wall_clock_timeout=a.timeout,
-                                   allowed_ops=WAREHOUSE_SKILL.allowed_ops)
+                                   allowed_ops=WAREHOUSE_SKILL.allowed_ops, allowed_actions=WAREHOUSE_SKILL.allowed_actions)
             print(f"output schema: {r.output_schema_chars:,} chars", flush=True)
             results.append(await run_skillstate(r, orders=a.orders, shelves=a.shelves, seed=a.seed))
             print(render(results[-1:]), flush=True)

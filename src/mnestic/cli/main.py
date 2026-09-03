@@ -47,7 +47,8 @@ def _reasoner(cfg: RuntimeConfig, skill: SkillSpecification | None, model: str |
 
     settings = {"timeout": cfg.model_timeout_seconds, **cfg.model_settings}
     return PydanticAIReasoner(name, output_mode=cfg.output_mode, retries=cfg.model_retries, model_settings=settings,
-                              wall_clock_timeout=cfg.model_timeout_seconds, allowed_ops=skill.allowed_ops if skill else None)
+                              wall_clock_timeout=cfg.model_timeout_seconds, allowed_ops=skill.allowed_ops if skill else None,
+                              allowed_actions=skill.allowed_actions if skill else None)
 
 
 def _runtime(cfg: RuntimeConfig, store: Store, reasoner: Reasoner):

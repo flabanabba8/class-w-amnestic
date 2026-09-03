@@ -114,8 +114,10 @@ class ContextBuilder:
         max_retrieved_excerpt_chars: int = 1200,
         chars_per_token: float = 4.0,
         allowed_ops: list[str] | None = None,
+        allowed_actions: list[str] | None = None,
     ):
         self.allowed_ops = allowed_ops
+        self.allowed_actions = allowed_actions
         self.tool_specs = list(tool_specs or [])
         self.max_retrieved_chars = max_retrieved_chars
         self.max_retrieved_excerpt_chars = max_retrieved_excerpt_chars
@@ -133,7 +135,10 @@ class ContextBuilder:
         obs_section = self.render_observation(observation)
         evidence_section = self.render_evidence(retrieved or [])
         ops_ref = render_op_reference(self.allowed_ops)
-        contract_section = f"<{SECTION_CONTRACT}>\n{OUTPUT_CONTRACT}\nPatch ops available to this skill (fields; ? = optional):\n{ops_ref}\n</{SECTION_CONTRACT}>"
+        actions_line = ""
+        if self.allowed_actions is not None:
+            actions_line = f"Action kinds available to this skill: {', '.join(self.allowed_actions)}.\n"
+        contract_section = f"<{SECTION_CONTRACT}>\n{OUTPUT_CONTRACT}\n{actions_line}Patch ops available to this skill (fields; ? = optional):\n{ops_ref}\n</{SECTION_CONTRACT}>"
 
         instructions = f"{skill_section}\n\n{contract_section}"
         prompt = state_section + "\n\n" + obs_section

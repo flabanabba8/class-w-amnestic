@@ -224,6 +224,7 @@ class Runtime:
         builder = ContextBuilder(
             tool_specs=self.tools.specs(skill.required_tools), max_retrieved_chars=self.config.max_retrieved_chars,
             max_retrieved_excerpt_chars=self.config.max_retrieved_excerpt_chars, allowed_ops=skill.allowed_ops,
+            allowed_actions=skill.allowed_actions,
         )
         return RuntimeDeps(config=self.config, store=self.store, skill=skill, reasoner=self.reasoner, tools=self.tools,
                            context_builder=builder, retriever=self.retriever, workspace_root=workspace, log=self.log)
