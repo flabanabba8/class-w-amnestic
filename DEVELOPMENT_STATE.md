@@ -19,6 +19,7 @@ criteria in the original brief met (see docs/AUDIT.md).**
 - Limits: reject with guidance for curated lists / bytes; automatic archived compaction for bookkeeping lists.
 - Step close + next step open is one transaction; tool execution is at-least-once (documented).
 - Runtime-owned counters committed as their own state versions.
+- Live-verified through 9Router (`openai-chat:` + `OPENAI_BASE_URL`): Claude Haiku 4.5 and Kimi K3 in `tool` mode, gpt-oss-120b in `prompted` mode; real token usage captured per call.
 
 ## Completed components
 
