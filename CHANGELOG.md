@@ -27,6 +27,8 @@ Found by running `codebase-research` on this repository with four models through
   no titles/descriptions/string bounds in model-facing schemas; discriminators forced `required` (llama.cpp grammar).
 - `Runtime.start(initial_ops=…)` seeds Σ₀; runtime feedback repeats the observation it corrects; idempotent
   promote/reject; wall-clock step timeout; prompt-cache token accounting (migration 2); `MNESTIC_MODEL_SETTINGS`.
+- Typed domain state: skill `domain_schema` (JSON Schema, validated on every write), `set_path`/`adjust_path`/
+  `delete_path` ops (runtime arithmetic), tool `state_effects` applied deterministically by the runtime.
 - Lean state rendering (`progress` block instead of counters/budgets; identity fields and empties omitted).
 
 ## 0.1.0 — 2026-09-03

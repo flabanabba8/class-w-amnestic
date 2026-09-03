@@ -63,9 +63,9 @@ implemented (resume refuses a changed skill rather than migrating).
 
 ## 4. Gaps and what they would take
 
-1. **Skill-authored state schema** (paper's "schema per domain"). Add `state_schema` (JSON Schema) to
-   `skill.yaml` and a `custom: dict` field on `ExecutionState` validated against it on every patch,
-   with `set_custom`/`clear_custom` ops. Small, valuable, keeps typed-op guarantees.
+1. ~~**Skill-authored state schema**~~ — done: `domain_schema` on the skill, `ExecutionState.domain`,
+   `set_path`/`adjust_path`/`delete_path`, and tool `state_effects` applied by the runtime. This closed the
+   warehouse accuracy gap (Sonnet 0.95 → 1.00, Gemma 0.48 → 0.71+).
 2. **Optional reasoning scratchpad** (paper's `R_t`). For non-reasoning models a bounded, archived,
    never-re-injected `scratchpad` field could raise decision quality. The brief forbids storing hidden
    chain-of-thought; this would be opt-in per config and archived only. Decision for the owner.

@@ -155,10 +155,10 @@ Tested end-to-end through a local [9Router](https://9router.com/) instance (`OPE
 
 | `openai-chat:gemma-4-12b-uncensored` (local llama-server, `--jinja`) | `native` + `MNESTIC_MODEL_SETTINGS='{"openai_reasoning_effort":"low"}'` | grammar-constrained decoding: malformed decisions are impossible; see docs/WAREHOUSE_BENCHMARK.md for results |
 
-**Long-horizon result (300-order warehouse, `docs/WAREHOUSE_BENCHMARK.md`):** Sonnet 5 scores 0.95 under this runtime vs 0.96
-as a transcript (ReAct) agent — parity — at ~1.0M vs ~8.5M prompt tokens and 22 vs 97 minutes; per-call cost is flat at
-order 300 where the transcript agent's has grown to 51K tokens. Small models (Gemma 4 12B) do worse with a curated state
-than with a transcript: the memory is only as good as its curator.
+**Long-horizon result (300-order warehouse, `docs/WAREHOUSE_BENCHMARK.md`):** with the runtime keeping the books (typed
+`domain_schema`, `adjust_path` ops, tool `state_effects`), Sonnet 5 scores **1.00** under this runtime vs 0.96 as a transcript
+(ReAct) agent, at ~1.0M vs ~8.5M prompt tokens and 15 vs 97 minutes; per-call cost is flat at order 300 where the transcript
+agent's has grown to 51K tokens. The lesson that cost a day: bookkeeping is the runtime's job, not the model's.
 
 Rule of thumb: frontier models → `tool`; smaller/open models or strict proxies → `prompted`; llama.cpp → `native` (the schema
 becomes a GBNF grammar). Reasoning models on llama.cpp need `openai_reasoning_effort` set, or they spend the whole
