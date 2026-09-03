@@ -187,7 +187,7 @@ class RegistryTool(Tool):
         action: Literal["set_port", "set_status", "add_dep", "remove_dep", "answer", "get"]
         service: str | None = None
         value: str | int | None = None
-        answer: str | None = Field(default=None, description="for queries: number, status, or comma-separated list ('-' for none)")
+        answer: str | None = Field(default=None, description="the VALUE for a query, read from your state: e.g. '8002' for a port, 'down' for a status, 'auth,billing' for a list, '-' for an empty list. Never the name of the query.")
 
     def __init__(self, env: RegistryEnv):
         self.env = env
@@ -205,9 +205,10 @@ REGISTRY_SKILL = SkillSpecification(
         "You operate a service registry. Each observation gives the outcome of your last action and the NEXT order.\n"
         "`domain.registry.<service>` in your state is the latest record for each service — {port, status, deps} — kept by the runtime "
         "from what the registry tool returns; you never edit it.\n"
-        "Mutation orders: call the matching registry action with service and value. Query orders: call action=answer with `answer`: "
-        "port -> the number; status -> the word; deps -> that service's deps as a comma-separated list ('-' if none); "
-        "dependents -> every service whose deps include it, comma-separated ('-' if none) — scan all records.\n"
+        "Mutation orders: call the matching registry action with service and value. Query orders: call action=answer with `answer` set "
+        "to the VALUE from domain.registry: port -> e.g. '8002'; status -> e.g. 'down'; deps -> that service's deps list, e.g. 'auth,billing' "
+        "('-' if none); dependents -> every service whose deps include it, e.g. 'cart,ledger' ('-' if none) — scan all records. "
+        "Example: order 'what port is cart on?' with domain.registry.cart.port = 8002 -> registry(action='answer', answer='8002').\n"
         "One registry call per order; an empty state_patch is fine. When the observation says ALL ORDERS DONE, submit completion."
     ),
     completion_criteria=["all orders processed"], phases=["operating", "done"], initial_phase="operating", default_max_steps=3000,
