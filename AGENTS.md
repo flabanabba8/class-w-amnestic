@@ -1,8 +1,8 @@
-# AGENTS.md — guidance for coding agents working on this repository
+# AGENTS.md — guidance for coding agents working on Class-W Mnestic
 
 ## Purpose
 
-`skillstate` is a long-horizon autonomous agent runtime implementing the
+Class-W Mnestic (Python package `skillstate`) is a long-horizon autonomous agent runtime implementing the
 **SKILL.state** architecture (Badhe, Tiwari, Chung — "SKILL.state: Scalable
 Long-Horizon Agent Skills", arXiv:2608.26263). The model reasons over a small,
 explicit, validated **Execution State** rather than an ever-growing chat

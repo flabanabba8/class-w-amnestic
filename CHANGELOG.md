@@ -2,7 +2,7 @@
 
 ## 0.1.0 — 2026-09-03
 
-Initial release of the SKILL.state runtime.
+Initial release of Class-W Mnestic, the SKILL.state runtime.
 
 - Typed `SkillSpecification`, `ExecutionState`, `StatePatch` (30 ops), `AgentDecision`,
   `Observation`, actions, archive events, memory queries.
