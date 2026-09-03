@@ -51,6 +51,24 @@ SQLite 3.53.1 (FTS5 available). Spike scripts verified each API before use.
 mode; Groq `gpt-oss-120b` needs `prompted` mode (Groq validates tool calls server-side and rejects the large nested
 schema). `model_calls` recorded real token usage from the proxy in both cases.
 
+## Local models via llama.cpp (Gemma 4 12B, `native` output mode)
+
+`native` mode sends the decision schema as `response_format: json_schema`; llama-server compiles it to a GBNF grammar, so
+malformed decisions are impossible (the paper's grammar-constrained-decoding recommendation). Three things had to change
+for that to work, all general:
+
+- `maxLength`/`minLength` on strings are stripped from model-facing schemas (llama.cpp cannot expand `maxLength: 2000`);
+  Python validation still enforces them.
+- Discriminator fields (`op`, `kind`) are forced into `required`: pydantic leaves fields with defaults optional, and a
+  grammar-constrained decoder will then omit them, yielding objects that match no op.
+- Field descriptions are out of the schema (token cost); the output contract instead carries one cached line per
+  allowed op (`set_phase(phase)`, …). Without it Gemma chose wrong ops.
+
+Reasoning models on llama.cpp need `MNESTIC_MODEL_SETTINGS='{"openai_reasoning_effort":"none"|"low", "max_tokens": N}'`:
+with thinking on and no budget, the model can spend the entire output on reasoning and never emit the decision (observed at
+`low` on inventory arithmetic: 4,000 tokens of thinking, no JSON). With `none`, a valid decision costs ~280 output tokens
+and 4–13 s on an RTX 4090 at Q8.
+
 ## Things intentionally left for later
 
 - leases for multi-process resume; exactly-once tools; vector retrieval; MCP; subagents;

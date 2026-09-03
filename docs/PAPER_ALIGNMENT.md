@@ -25,7 +25,7 @@ comparison against history-based agents, only the token-scaling one.
 | Prompt footprint `O(|P|+|Σ|+|O|)`, cumulative `O(T)` | measured: 2,878 → 3,364 chars over 1,000 steps (benchmark workload); 7–19K chars in real research runs, capped by `StateLimits` (48 KB) | **matches** |
 | Validation and schema ownership "reside in the deterministic runtime rather than the model" | `apply_patch` is pure and deterministic; commit is an optimistic `UPDATE … WHERE state_version=?` | **matches** |
 | State drift experiment: obsolete facts in history "overpower contradictory new observations"; SKILL.state recovers in zero steps | `test_stale_fact_leaves_context_but_stays_in_archive` (port 8000 → 9000): the next prompt contains only 9000; 8000 stays in the archive | **matches** |
-| Grammar-constrained decoding recommended for small models | `output_mode = tool \| native \| prompted`; `native` uses the provider's JSON-schema mode; in-step `ModelRetry` for the rest | **matches where the provider supports it** (Groq gpt-oss needed `prompted`) |
+| Grammar-constrained decoding recommended for small models | `output_mode = native` → llama.cpp GBNF grammar; verified with Gemma 4 12B (local): zero malformed decisions, research task completed in 7 steps | **matches, verified** (schema had to drop string length bounds and force discriminators required) |
 | Multi-agent: "concurrent writes require deterministic conflict-resolution semantics" | optimistic concurrency: stale writer's commit fails, is recorded, run pauses | **partial** (single-agent as in the paper; conflicts are detected, not merged) |
 
 ## 2. Where the implementation goes beyond the paper
