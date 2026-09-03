@@ -57,7 +57,40 @@ A local 12B model runs the loop end to end at 2.6 s per step with a flat 5.6K-ch
 not format. Compared with the same model's earlier attempts, the schema fixes (string bounds, required discriminators)
 and the cached op reference are what made grammar mode usable at all.
 
-## Kimi K3 (NVIDIA route, no prompt caching, no route prefix) — 300 orders
+## 300 orders — SKILL.state vs ReAct, same model, same seed
+
+Provider-side prompt tokens (9Router / llama.cpp logs; includes cache hits). "SKILL.state" rows run on the current build
+(slim schema, seeded Σ₀, `inspect` verification, tools-only actions) unless marked *old*; the Sonnet/Kimi ReAct runs
+started before `inspect` existed and could not verify.
+
+| model | mode | score | prompt tokens, all calls | per call, first → last | output tokens | wall | notes |
+|---|---|---:|---:|---|---:|---:|---|
+| **Sonnet 5** | SKILL.state + inspect | **0.95** | ≈ 1.03M | 6.0K → 6.2K, **flat** | 99K | **22 min** | 17 inspections; 12 count / 3 store / 1 ship misses |
+| Sonnet 5 | SKILL.state, no inspect | 0.85 | ≈ 1.12M | flat | 108K | 24 min | drift never corrected |
+| Sonnet 5 | ReAct | 0.96 | ≈ 8.5M (92% cache hits) | 2.2K → **51K** | 417K | 97 min | transcript 659K chars at the end |
+| **Kimi K3** | ReAct | **0.98** | 7.7M (no caching) | 1.0K → **51K** | 34K | 87 min | strongest raw result; expensive |
+| Kimi K3 | SKILL.state (*old build*) | 0.88 | 1.76M | 5.6K → 5.7K, flat | 94K | 2.9 h (NVIDIA stalls) | before inspect/seed/slim; matched rerun pending |
+| Gemma 4 12B (local) | ReAct | 0.83 | 6.7M (50% KV-cache reuse) | ~1K → 22K | 9K | 12 min | 131K window, no truncation |
+| Gemma 4 12B | SKILL.state, seeded + inspect | 0.48 | 0.80M | flat 5.4K chars | 62K | 13 min | 82% in the first 50 orders → 23% in the last: arithmetic drift, 8 inspections |
+| scripted optimal policy | SKILL.state | 1.00 | — | flat 5.5K chars | — | 1 s | harness ceiling |
+
+### Reading
+
+- **Tokens: decisive.** SKILL.state's per-call cost is the same at order 300 as at order 1; ReAct's grows ~165 tokens per
+  order to 51K. Over 300 orders that is 7–8× fewer prompt tokens for Sonnet/Kimi and 4× fewer wall-clock minutes for
+  Sonnet (22 vs 97), and the gap widens with every additional order. Caching softens the *bill* for ReAct on routes
+  that have it (92% hits) but not the latency: the model still reads 51K tokens per order.
+- **Accuracy: tied for a strong model with verification, not better.** Sonnet 0.95 vs 0.96. Without the `inspect`
+  tool the state-based agent drifts (0.85) because a wrong shelf belief is never contradicted; with it, it verifies
+  ~once per 18 orders and recovers. The paper's accuracy gain did not reproduce here; parity at 1/8 the cost did.
+- **Small models: the transcript wins.** Gemma 12B cannot maintain a 12-line inventory through 300 arithmetic
+  updates (0.48) but can re-derive answers from raw history (0.83). This is the paper's own small-model finding
+  (state overwrite errors dominate) seen from the other side: a curated memory is only as good as the curator.
+- **What would move the small-model number** (not run, since it changes the task): the environment echoing the
+  shelf's new contents after each store/ship, so updates are copies instead of arithmetic — a real WMS does that —
+  or a skill rule forcing an inspect before every count and after every rejection.
+
+## Kimi K3 (NVIDIA route, no prompt caching, no route prefix) — 300 orders, old build
 
 | score | correct | steps | calls | prompt tokens (provider, no caching) | per call first → last | context chars first → last | wall |
 |---:|---:|---:|---:|---:|---|---|---:|

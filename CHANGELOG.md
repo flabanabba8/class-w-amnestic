@@ -21,6 +21,13 @@ Found by running `codebase-research` on this repository with four models through
 - `codebase-research` skill: pacing guidance.
 - Result: zero wasted tool calls for all four models; Kimi 12→9 steps, 141K→87K tokens;
   Luna never-completed → 14 clean steps.
+- Warehouse long-horizon benchmark (`benchmarks/warehouse.py`, `scripts/warehouse_bench.py`): deterministic
+  order stream, `inspect` verification, live ReAct baseline; 300-order results for Sonnet 5, Kimi K3, Gemma 4.
+- Output-schema slimming: per-skill `allowed_ops` (default core set of 16, `["*"]` for all) and `allowed_actions`;
+  no titles/descriptions/string bounds in model-facing schemas; discriminators forced `required` (llama.cpp grammar).
+- `Runtime.start(initial_ops=…)` seeds Σ₀; runtime feedback repeats the observation it corrects; idempotent
+  promote/reject; wall-clock step timeout; prompt-cache token accounting (migration 2); `MNESTIC_MODEL_SETTINGS`.
+- Lean state rendering (`progress` block instead of counters/budgets; identity fields and empties omitted).
 
 ## 0.1.0 — 2026-09-03
 
