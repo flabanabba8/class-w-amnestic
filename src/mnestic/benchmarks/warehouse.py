@@ -55,6 +55,7 @@ class WarehouseEnv:
     inventory: dict[str, dict[str, int]] = field(default_factory=dict)
     order_list: list[Order] = field(default_factory=list)
     cursor: int = 0
+    inspections: int = 0
     log: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -104,6 +105,12 @@ class WarehouseEnv:
         o = self.current_order()
         if o is None:
             return False, "no pending order"
+        if action == "inspect":
+            # Verification: look at one shelf's true contents. Does not consume the order and is not scored.
+            if shelf not in self.inventory:
+                return False, f"INSPECT: unknown shelf {shelf}\n{o.text()}"
+            self.inspections += 1
+            return True, f"INSPECT {shelf}: holds {self._desc(shelf)} ({self.capacity - self.used(shelf)} free)\n{o.text()}"
         ok, msg = False, ""
         if o.kind == "store":
             if action != "store" or item != o.item or qty != o.qty:
@@ -151,11 +158,14 @@ class WarehouseEnv:
 
 class WarehouseTool(Tool):
     name: ClassVar[str] = "warehouse"
-    description: ClassVar[str] = "Respond to the current order. store/ship need shelf+item+qty; count needs answer. Returns the outcome and the NEXT order."
+    description: ClassVar[str] = (
+        "Respond to the current order. store/ship need shelf+item+qty; count needs answer. Returns the outcome and the NEXT order. "
+        "action=inspect with a shelf returns that shelf's true contents WITHOUT consuming the order (use it to verify)."
+    )
 
     class Args(BaseModel):
         model_config = ConfigDict(extra="forbid")
-        action: Literal["store", "ship", "count"]
+        action: Literal["store", "ship", "count", "inspect"]
         shelf: str | None = Field(default=None, description="e.g. S03")
         item: str | None = None
         qty: int | None = Field(default=None, ge=1)
@@ -180,7 +190,9 @@ WAREHOUSE_SKILL = SkillSpecification(
         "Rules: a shelf holds at most `capacity` units in total; ship only from a shelf that holds enough of the item; for count "
         "orders sum the item across all shelves from your entities and answer with `answer`.\n"
         "Respond to every order with exactly one `warehouse` tool action. Do not add facts or hypotheses; the entities ARE the "
-        "state. When the observation says ALL ORDERS DONE, submit completion with outcome=success."
+        "state. Verification: `inspect` a shelf (does not consume the order) whenever a store/ship was rejected, before answering a "
+        "count if you are unsure, and every ~10 orders for the shelves you touched most; then correct that shelf's entity. "
+        "When the observation says ALL ORDERS DONE, submit completion with outcome=success."
     ),
     completion_criteria=["all orders processed"], phases=["operating", "done"], initial_phase="operating", default_max_steps=5000,
     allowed_ops=["set_entity", "remove_entity", "set_environment", "set_observation_summary", "set_phase"],
@@ -265,6 +277,7 @@ class BenchResult:
     status: str
     per_order: list[dict[str, Any]] = field(default_factory=list)
     notes: str = ""
+    inspections: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
 
@@ -291,7 +304,7 @@ async def run_skillstate(reasoner: Any, *, orders: int = 60, shelves: int = 12, 
     m = store.run_metrics(out.run_id)
     return BenchResult("skillstate", getattr(reasoner, "model_name", "?"), orders, env.score, sum(1 for r in env.log if r["correct"]), out.steps,
                        m["model_calls"] or 0, m["input_tokens"] or 0, m["output_tokens"] or 0, m["max_context_chars"] or 0, time.time() - t0,
-                       out.status.value, env.log, f"run_id={out.run_id} db={db_path}", m["cache_read_tokens"] or 0, m["cache_write_tokens"] or 0)
+                       out.status.value, env.log, f"run_id={out.run_id} db={db_path}", env.inspections, m["cache_read_tokens"] or 0, m["cache_write_tokens"] or 0)
 
 
 async def run_react(model: Any, *, orders: int = 60, shelves: int = 12, seed: int = 7, max_tool_calls: int | None = None, model_settings: dict[str, Any] | None = None) -> BenchResult:
@@ -306,9 +319,10 @@ async def run_react(model: Any, *, orders: int = 60, shelves: int = 12, seed: in
     )
 
     @agent.tool_plain
-    def warehouse(action: Literal["store", "ship", "count"], shelf: str | None = None, item: str | None = None,
+    def warehouse(action: Literal["store", "ship", "count", "inspect"], shelf: str | None = None, item: str | None = None,
                   qty: int | None = None, answer: int | None = None) -> str:
-        """Respond to the current order. store/ship need shelf+item+qty; count needs answer. Returns the outcome and the NEXT order."""
+        """Respond to the current order. store/ship need shelf+item+qty; count needs answer. Returns the outcome and the NEXT order.
+        action=inspect with a shelf returns that shelf's true contents WITHOUT consuming the order (use it to verify)."""
         return env.act(action, shelf, item, qty, answer)[1]
 
     t0 = time.time()
@@ -328,13 +342,13 @@ async def run_react(model: Any, *, orders: int = 60, shelves: int = 12, seed: in
         status = f"stopped: {type(exc).__name__}: {str(exc)[:120]}"
     return BenchResult("react", getattr(model, "model_name", str(model)), orders, env.score, sum(1 for r in env.log if r["correct"]), len(env.log),
                        usage.requests if usage else 0, usage.input_tokens if usage else 0, usage.output_tokens if usage else 0,
-                       max_ctx, time.time() - t0, status, env.log, "", usage.cache_read_tokens if usage else 0, usage.cache_write_tokens if usage else 0)
+                       max_ctx, time.time() - t0, status, env.log, "", env.inspections, usage.cache_read_tokens if usage else 0, usage.cache_write_tokens if usage else 0)
 
 
 def render(results: list[BenchResult]) -> str:
-    lines = ["| mode | model | orders | score | correct | steps | model calls | input tok (uncached) | cache read | cache write | total shown | output tok | max ctx chars | wall s | status |",
-             "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
+    lines = ["| mode | model | orders | score | correct | inspections | steps | model calls | input tok (uncached) | cache read | cache write | total shown | output tok | max ctx chars | wall s | status |",
+             "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     for r in results:
         total = r.input_tokens + r.cache_read_tokens + r.cache_write_tokens
-        lines.append(f"| {r.mode} | {r.model} | {r.orders} | {r.score:.2f} | {r.correct} | {r.steps} | {r.model_calls} | {r.input_tokens:,} | {r.cache_read_tokens:,} | {r.cache_write_tokens:,} | {total:,} | {r.output_tokens:,} | {r.max_context_chars:,} | {r.wall_seconds:.0f} | {r.status} |")
+        lines.append(f"| {r.mode} | {r.model} | {r.orders} | {r.score:.2f} | {r.correct} | {r.inspections} | {r.steps} | {r.model_calls} | {r.input_tokens:,} | {r.cache_read_tokens:,} | {r.cache_write_tokens:,} | {total:,} | {r.output_tokens:,} | {r.max_context_chars:,} | {r.wall_seconds:.0f} | {r.status} |")
     return "\n".join(lines)

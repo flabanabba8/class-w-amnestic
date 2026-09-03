@@ -47,3 +47,12 @@ def test_react_baseline_runs_with_a_function_model():
 
     r = asyncio.run(run_react(FunctionModel(fn), orders=10, seed=5))
     assert r.mode == "react" and r.steps == 3 and r.model_calls == 4 and r.status == "completed" and r.max_context_chars > 0
+
+
+def test_inspect_verifies_without_consuming_the_order():
+    env = WarehouseEnv(orders=5, seed=2)
+    before = env.cursor
+    ok, msg = env.act("inspect", "S01", None, None, None)
+    assert ok and msg.startswith("INSPECT S01: holds") and "free)" in msg and "ORDER #1" in msg
+    assert env.cursor == before and env.log == [] and env.inspections == 1
+    assert not env.act("inspect", "S99", None, None, None)[0]
