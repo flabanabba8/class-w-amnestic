@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- **Project renamed to Class W Amnestic** (2026-09-04; formerly Class-W Mnestic). Forge repos are now
+  `class-w-amnestic` on GitHub, Codeberg and GitLab (old URLs redirect); distribution name is `class-w-amnestic`.
+  The Python package, `mnestic` CLI and `MNESTIC_*` environment variables are unchanged.
+
 Found by running `codebase-research` on this repository with four models through 9Router
 (Kimi K3, Sonnet 5, Haiku 4.5, Codex gpt-5.6-luna) and reading the archived traces:
 
