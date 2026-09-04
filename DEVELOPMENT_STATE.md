@@ -1,55 +1,64 @@
 # DEVELOPMENT_STATE.md
 
-*Based on the paper: Sanket Badhe, Priyanka Tiwari, Jonghyun Chung — **SKILL.state: Scalable Long-Horizon Agent Skills** (EMNLP 2026), [arXiv:2608.26263](https://arxiv.org/abs/2608.26263) · [PDF](https://arxiv.org/pdf/2608.26263).*
+*Based on the paper: Badhe, Tiwari, Chung — SKILL.state: Scalable Long-Horizon Agent Skills, [arXiv:2608.26263](https://arxiv.org/abs/2608.26263).*
 
-Current development state only. Git history is the diary.
+Current development state only. Git history is the diary. Last updated 2026-09-04.
 
 ## Objective
 
-v1 SKILL.state runtime (`mnestic`): validated, bounded-context long-horizon agent
-loop on PydanticAI + pydantic-graph + SQLite. **Status: v0.1.0 complete; all acceptance
-criteria in the original brief met (see docs/AUDIT.md).**
+Class-W Mnestic (`mnestic`): a SKILL.state runtime — bounded per-step context, validated execution state, append-only
+archive with explicit retrieval, durable resume — that beats or matches transcript agents on long tasks at a fraction of
+the tokens. **Status: v0.1 complete; long-horizon claim validated on two tasks with three models; repo at `3028560` on
+GitHub, Codeberg, GitLab; 113 tests, ruff + mypy clean.**
 
-## Verified architectural decisions
+## What is true now (verified)
 
-- Upstream: pydantic-ai-slim 2.37.0, pydantic-graph 2.37.0, pydantic 2.13.5, Python 3.12, SQLite 3.53 (FTS5).
-- pydantic-graph 2.x has no persistence; lifecycle = `GraphBuilder` + `BaseNode`s with a single `Enter` dispatcher; durability = our `steps` table.
-- One fresh `Agent.run(prompt, instructions=skill+contract)` per step; never `message_history`; per-step messages archived to `model_calls.raw_messages_json`.
-- `ContextBuilder(skill, state, observation, retrieved)` is the only prompt assembler; it has no storage import (test-enforced).
-- `StatePatch` = strict discriminated-union ops; `apply_patch` pure + atomic; commit with `UPDATE … WHERE state_version=?` (stale → recorded rejection + pause).
-- Facts need archive-verified evidence ids; hypotheses promote only via `promote_hypothesis`.
-- Limits: reject with guidance for curated lists / bytes; automatic archived compaction for bookkeeping lists.
-- Step close + next step open is one transaction; tool execution is at-least-once (documented).
-- Runtime-owned counters committed as their own state versions.
-- Live-verified through 9Router (`openai-chat:` + `OPENAI_BASE_URL`): Claude Haiku 4.5 and Kimi K3 in `tool` mode, gpt-oss-120b in `prompted` mode; real token usage captured per call.
+- Context per step is flat regardless of horizon (mock 1000 steps; live 300 orders: 5–8K chars at order 300 = order 1).
+- **Runtime keeps the books (generic):** `ToolResult.facts` → `domain.<tool>.<key>` with provenance, bounded per tool
+  (`ledger_entries_per_tool`). Built-in tools report facts. Typed `domain_schema` + `set_path`/`adjust_path`/`delete_path`
+  for skill-owned state. No task-specific bookkeeping code exists in `src/mnestic/`.
+- **Decision schema is shaped per skill:** `allowed_ops` (default core set of 19, `["*"]` = all), `allowed_actions`, one typed
+  `ToolAction` variant per required tool (`Reasoner.bind(skill, tools)` before start/resume), no titles/descriptions/string
+  bounds in model-facing schemas, discriminators forced required (llama.cpp grammar), cached one-line op reference in the
+  contract.
+- **Small models work in `native` (grammar) mode** with `MNESTIC_MODEL_SETTINGS='{"openai_reasoning_effort":"low","max_tokens":4000}'`;
+  budget exhaustion retries with 2× budget then counts as a stall (pause), not a decision failure.
+- Runtime feedback repeats the observation it corrects; promote/reject are idempotent; loop guard keys on (action, observation)
+  in a sliding window; provider timeouts have their own budget; `Runtime.start(initial_ops=…)` seeds Σ₀.
+- Results (`docs/WAREHOUSE_BENCHMARK.md`, `docs/REGISTRY_BENCHMARK.md`): warehouse 300 — Sonnet 1.00 vs ReAct 0.96 (1.0M vs
+  8.5M tokens, 15 vs 97 min); Gemma 4 12B 1.00 vs ReAct 0.83. Registry 200 — Sonnet 0.97 vs 0.98 (2.6× fewer tokens, not
+  faster); Gemma 1.00 vs 0.99. Every "small model can't" number before 2026-09-04 was measured with reasoning off.
+- Measured-at-the-provider rule (`docs/CONTEXT_INVARIANTS.md` I8): per-call cost = context + output schema + route prefix;
+  9Router's Claude Code route adds ~4.4K tokens/call that is not ours.
 
-## Completed components
+## Known limitations / honest gaps
 
-models · state/apply · storage (schema v1, Store) · memory (ArchiveRetriever, SemanticMemoryStore) · context/builder ·
-agent (PydanticAIReasoner, ScriptedReasoner) · graph (10 nodes, Runtime.start/resume) · tools (6, workspace-confined, shell policy) ·
-skills loader + 2 example skills with mock scripts · CLI (15 commands) · observability (structured logging, optional logfire) ·
-benchmark + ReAct simulator · 83 tests (unit/integration/benchmark, no credentials) · docs (README, ARCHITECTURE, STATE_MODEL,
-PERSISTENCE, MEMORY, CONTEXT_INVARIANTS, CRASH_RECOVERY, SECURITY, IMPLEMENTATION_NOTES, BENCHMARK_REPORT, AUDIT) · AGENTS.md.
+- The ledger helps where tools return records. Where tools return prose (research, code review), facts are the model's
+  judgments and the built-in facts (hashes, match counts) are bookkeeping only — untested whether that changes accuracy.
+- `dependents`-style aggregation over many ledger entries is where remaining misses live (all models, both modes);
+  a generic "index facts by field" option would remove that reasoning step — not built.
+- Cache-hit accounting through 9Router reads 0 (non-standard `cached_tokens` field); percentages in docs come from 9Router's log.
+- No multi-process lease (optimistic concurrency only); tool execution is at-least-once; no skill migration events.
+- ReAct baselines for Sonnet/Kimi on the warehouse predate `inspect`; Gemma's baselines had it.
+- Kimi K3 300-order SKILL.state on the current build not rerun (NVIDIA stalls; 0.94 over 153 on an earlier build).
+- Usability pass not done: `mnestic run` should need no flags (model from config, no step numbers surfaced); a config file
+  (`.mnestic/config.toml`) does not exist yet; env vars and CLI flags only.
 
-- Typed domain state (`domain_schema`, path ops, tool `state_effects`): the runtime keeps the books. Warehouse 300 orders:
-  Sonnet 1.00 / Gemma 12B 0.99 vs transcript agents 0.96 / 0.83 at 8× the tokens (`docs/WAREHOUSE_BENCHMARK.md`).
+## Next actions (in order)
 
-## Current blockers
+1. Usability: `mnestic init` writes a config file; `run` defaults to it; hide step budgets; friendly errors when no model.
+2. A prose-tool task (multi-file coding change with a test suite; facts = test results + file hashes) with Gemma and Sonnet, both
+   modes — the test that says whether the ledger matters beyond record-returning tools.
+3. Generic fact indexing (`index_by` on a tool's facts) for reverse lookups.
+4. Cache-token mapping for 9Router; Kimi rerun on the current build when NVIDIA is stable.
 
-- None.
+## How to run the benchmarks
 
-## Open design questions
-
-- Multi-process lease for resume (currently: optimistic concurrency only).
-- Whether `ContinueAction` should be rate-limited by wall clock as well as count.
-- Semantic memory is queried only on demand; should skills be able to declare "always inject these keys" (bounded)? Deferred — risk of prompt creep.
-
-## Failing tests
-
-- None (`uv run pytest`: 83 passed, 1 skipped — the optional live-model test).
-
-## Next actions
-
-1. Try a live model end-to-end (`MNESTIC_LIVE_TESTS=1`) and tune the output contract wording from real decisions.
-2. Add `runs.lease_*` migration for cooperative multi-process resume.
-3. Stage 3+: semantic retriever behind `Retriever`; richer tools; MCP; subagents (see docs/ARCHITECTURE.md roadmap).
+```
+uv run python scripts/warehouse_bench.py --model mock --orders 300
+uv run python scripts/registry_bench.py  --model mock --orders 200
+# local Gemma via llama.cpp (systemctl --user start llama-server):
+OPENAI_BASE_URL=http://127.0.0.1:8080/v1 OPENAI_API_KEY=local MNESTIC_OUTPUT_MODE=native \
+MNESTIC_MODEL_SETTINGS='{"openai_reasoning_effort":"low","temperature":0.2,"max_tokens":4000}' \
+uv run python scripts/registry_bench.py --model openai-chat:gemma-4-12b-uncensored --orders 200 --mode both --timeout 300
+```
