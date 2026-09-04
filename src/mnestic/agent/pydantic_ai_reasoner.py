@@ -97,30 +97,48 @@ class PydanticAIReasoner:
                 )
             return decision
 
+    MAX_OUTPUT_BUDGET = 16_000
+
     async def decide(self, context: ModelContext) -> ReasonerResult:
         started = time.monotonic()
-        try:
-            run = self.agent.run(
-                context.prompt,
-                instructions=context.instructions,
-                deps=context.state_version,
-                model_settings=self.model_settings,
-            )
-            result = await (asyncio.wait_for(run, self.wall_clock_timeout) if self.wall_clock_timeout else run)
-        except TimeoutError:
-            return ReasonerResult(
-                error=f"model call exceeded the wall-clock timeout of {self.wall_clock_timeout:.0f}s", error_kind="timeout",
-                model_name=self.model_name, duration_ms=_ms(started),
-            )
-        except (UnexpectedModelBehavior, UsageLimitExceeded, ValidationError) as exc:
-            return ReasonerResult(
-                error=f"{type(exc).__name__}: {exc}", error_kind="validation", model_name=self.model_name,
-                duration_ms=_ms(started),
-            )
-        except Exception as exc:
-            return ReasonerResult(
-                error=f"{type(exc).__name__}: {exc}", error_kind="model", model_name=self.model_name, duration_ms=_ms(started)
-            )
+        settings: Any = self.model_settings
+        attempts = 0
+        while True:
+            attempts += 1
+            try:
+                run = self.agent.run(
+                    context.prompt,
+                    instructions=context.instructions,
+                    deps=context.state_version,
+                    model_settings=settings,
+                )
+                result = await (asyncio.wait_for(run, self.wall_clock_timeout) if self.wall_clock_timeout else run)
+                break
+            except TimeoutError:
+                return ReasonerResult(
+                    error=f"model call exceeded the wall-clock timeout of {self.wall_clock_timeout:.0f}s", error_kind="timeout",
+                    model_name=self.model_name, duration_ms=_ms(started),
+                )
+            except UnexpectedModelBehavior as exc:
+                # A reasoning model that spent its whole output budget thinking is a budget event, not a decision:
+                # retry once with a doubled budget (capped) before reporting it as a stall.
+                current = int((settings or {}).get("max_tokens") or 0)
+                if "token limit" in str(exc) and current and current < self.MAX_OUTPUT_BUDGET and attempts < 3:
+                    settings = {**(settings or {}), "max_tokens": min(current * 2, self.MAX_OUTPUT_BUDGET)}
+                    continue
+                if "token limit" in str(exc):
+                    return ReasonerResult(error=f"output budget exhausted by reasoning: {exc}", error_kind="timeout",
+                                          model_name=self.model_name, duration_ms=_ms(started))
+                return ReasonerResult(error=f"{type(exc).__name__}: {exc}", error_kind="validation", model_name=self.model_name, duration_ms=_ms(started))
+            except (UsageLimitExceeded, ValidationError) as exc:
+                return ReasonerResult(
+                    error=f"{type(exc).__name__}: {exc}", error_kind="validation", model_name=self.model_name,
+                    duration_ms=_ms(started),
+                )
+            except Exception as exc:
+                return ReasonerResult(
+                    error=f"{type(exc).__name__}: {exc}", error_kind="model", model_name=self.model_name, duration_ms=_ms(started)
+                )
         usage = result.usage
         # Messages from *this* step are archived for audit and then discarded — never re-sent.
         raw = json.loads(ModelMessagesTypeAdapter.dump_json(result.all_messages()))

@@ -150,3 +150,21 @@ async def test_provider_timeouts_have_their_own_budget_and_pause_instead_of_fail
     reasoner = PydanticAIReasoner(FunctionModel(slow), retries=0, wall_clock_timeout=0.05)
     out = await Runtime(cfg, store, reasoner=reasoner, tools=default_registry()).start(simple_skill, "go")
     assert out.status == RunStatus.PAUSED and out.reason == "too_many_timeouts" and calls["n"] == 4
+
+
+async def test_thinking_budget_exhaustion_retries_with_a_bigger_budget(config, store, simple_skill):
+    """'Model token limit exceeded before any response' is a budget event: retry with 2x max_tokens, then count as a stall."""
+    seen: list[int | None] = []
+
+    def fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        seen.append((info.model_settings or {}).get("max_tokens"))
+        if len(seen) == 1:
+            from pydantic_ai.exceptions import UnexpectedModelBehavior
+
+            raise UnexpectedModelBehavior("Model token limit (500) exceeded before any response was generated.")
+        v = _state_version(messages)
+        return ModelResponse(parts=[ToolCallPart(tool_name=info.output_tools[0].name, args=_decision(v, completion={"outcome": "success", "summary": "ok"}))])
+
+    reasoner = PydanticAIReasoner(FunctionModel(fn), retries=0, model_settings={"max_tokens": 500})
+    out = await Runtime(config, store, reasoner=reasoner, tools=default_registry()).start(simple_skill, "go")
+    assert out.status == RunStatus.COMPLETED and seen == [500, 1000]
