@@ -1,6 +1,6 @@
 # Class W Amnestic
 
-*In SCP lore, a Class-W mnestic grants permanent immunity to forgetting. This runtime is built on the same premise: the agent never truly loses what it has seen — it just stops carrying all of it around.*
+*In SCP lore, an amnestic is administered to make someone forget. This runtime doses its agent every step: the chat transcript is wiped, and only the validated execution state comes back. Nothing is truly lost, though — every observation is archived and searchable, the agent just never carries it all around.*
 
 **Class W Amnestic** (Python package and CLI: `mnestic`) is a long-horizon autonomous agent runtime built on
 **PydanticAI**, **pydantic-graph**, **Pydantic** and **SQLite**, implementing the
