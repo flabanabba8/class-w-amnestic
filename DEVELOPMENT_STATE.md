@@ -8,7 +8,7 @@ Current development state only. Git history is the diary. Last updated 2026-09-0
 
 Class W Amnestic (`mnestic`): a SKILL.state runtime — bounded per-step context, validated execution state, append-only
 archive with explicit retrieval, durable resume — that beats or matches transcript agents on long tasks at a fraction of
-the tokens. **Status: v0.1 complete; long-horizon claim validated on two tasks with three models; repo at `733f218` on
+the tokens. **Status: v0.1 complete; long-horizon claim validated on two tasks with three models; repo at `0d3b008` on
 GitHub, Codeberg, GitLab; 113 tests, ruff + mypy clean.**
 
 ## What is true now (verified)
@@ -16,6 +16,8 @@ GitHub, Codeberg, GitLab; 113 tests, ruff + mypy clean.**
 - **Renamed 2026-09-04: Class-W Mnestic → Class W Amnestic.** Forge repos are now `flabanabba8/class-w-amnestic` (GitHub),
   `antimemetics-division/class-w-amnestic` (Codeberg, public URL), `flabanabba8/class-w-amnestic` (GitLab); old URLs redirect.
   Distribution name is `class-w-amnestic`; the Python package, `mnestic` CLI and `MNESTIC_*` env vars are unchanged.
+  README tagline reworded for the amnestic framing (per-step transcript wipe, archive keeps everything); CHANGELOG has the
+  rename entry under Unreleased. Local git remotes and the session memory file point at the new URLs.
 - Context per step is flat regardless of horizon (mock 1000 steps; live 300 orders: 5–8K chars at order 300 = order 1).
 - **Runtime keeps the books (generic):** `ToolResult.facts` → `domain.<tool>.<key>` with provenance, bounded per tool
   (`ledger_entries_per_tool`). Built-in tools report facts. Typed `domain_schema` + `set_path`/`adjust_path`/`delete_path`
