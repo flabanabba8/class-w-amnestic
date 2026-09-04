@@ -1,4 +1,4 @@
-# Should Class-W Mnestic use a database (and which)?
+# Should Class W Amnestic use a database (and which)?
 
 *Based on the paper: Badhe, Tiwari, Chung — SKILL.state: Scalable Long-Horizon Agent Skills, [arXiv:2608.26263](https://arxiv.org/abs/2608.26263).*
 

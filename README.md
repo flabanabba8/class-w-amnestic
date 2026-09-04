@@ -1,8 +1,8 @@
-# Class-W Mnestic
+# Class W Amnestic
 
 *In SCP lore, a Class-W mnestic grants permanent immunity to forgetting. This runtime is built on the same premise: the agent never truly loses what it has seen — it just stops carrying all of it around.*
 
-**Class-W Mnestic** (Python package and CLI: `mnestic`) is a long-horizon autonomous agent runtime built on
+**Class W Amnestic** (Python package and CLI: `mnestic`) is a long-horizon autonomous agent runtime built on
 **PydanticAI**, **pydantic-graph**, **Pydantic** and **SQLite**, implementing the
 architecture of *SKILL.state: Scalable Long-Horizon Agent Skills*
 (Badhe, Tiwari, Chung — [arXiv:2608.26263](https://arxiv.org/abs/2608.26263)).
@@ -46,7 +46,7 @@ an append-only archive with explicit retrieval, durable crash/resume, and inspec
 
 ## Why this is different from a chat-history agent
 
-| | chat-history / ReAct agent | Class-W Mnestic |
+| | chat-history / ReAct agent | Class W Amnestic |
 |---|---|---|
 | working memory | the message list | a validated `ExecutionState` (Pydantic) |
 | what step *t* sees | everything since step 0 | skill + state + newest observation |
@@ -57,7 +57,7 @@ an append-only archive with explicit retrieval, durable crash/resume, and inspec
 | crash recovery | replay the transcript | reload state + step phase from SQLite |
 | auditability | read the transcript | `history`, `diff`, `events`, `inspect-context` |
 
-The 300-step benchmark in `tests/benchmarks` shows the Class-W Mnestic context flat at
+The 300-step benchmark in `tests/benchmarks` shows the Class W Amnestic context flat at
 ~3.3K chars while the simulated transcript agent passes 175K chars; the archive grows
 linearly, the prompt does not. See `docs/BENCHMARK_REPORT.md`.
 

@@ -6,7 +6,7 @@ Current development state only. Git history is the diary. Last updated 2026-09-0
 
 ## Objective
 
-Class-W Mnestic (`mnestic`): a SKILL.state runtime — bounded per-step context, validated execution state, append-only
+Class W Amnestic (`mnestic`): a SKILL.state runtime — bounded per-step context, validated execution state, append-only
 archive with explicit retrieval, durable resume — that beats or matches transcript agents on long tasks at a fraction of
 the tokens. **Status: v0.1 complete; long-horizon claim validated on two tasks with three models; repo at `3028560` on
 GitHub, Codeberg, GitLab; 113 tests, ruff + mypy clean.**

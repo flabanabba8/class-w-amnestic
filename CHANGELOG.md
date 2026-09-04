@@ -33,7 +33,7 @@ Found by running `codebase-research` on this repository with four models through
 
 ## 0.1.0 — 2026-09-03
 
-Initial release of Class-W Mnestic, the SKILL.state runtime.
+Initial release of Class W Amnestic, the SKILL.state runtime.
 
 - Typed `SkillSpecification`, `ExecutionState`, `StatePatch` (30 ops), `AgentDecision`,
   `Observation`, actions, archive events, memory queries.

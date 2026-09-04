@@ -260,7 +260,7 @@ wheels = [
 ]
 
 [[package]]
-name = "class-w-mnestic"
+name = "class-w-amnestic"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

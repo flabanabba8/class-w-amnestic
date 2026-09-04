@@ -1,7 +1,7 @@
 [project]
-name = "class-w-mnestic"
+name = "class-w-amnestic"
 version = "0.1.0"
-description = "Class-W Mnestic: a SKILL.state long-horizon agent runtime — explicit execution state instead of chat transcripts (PydanticAI + pydantic-graph + SQLite)"
+description = "Class W Amnestic: a SKILL.state long-horizon agent runtime — explicit execution state instead of chat transcripts (PydanticAI + pydantic-graph + SQLite)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

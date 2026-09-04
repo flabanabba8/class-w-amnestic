@@ -1,4 +1,4 @@
-"""Class-W Mnestic (package ``mnestic``) — a SKILL.state long-horizon agent runtime.
+"""Class W Amnestic (package ``mnestic``) — a SKILL.state long-horizon agent runtime.
 
 The model reasons over an explicit, validated ExecutionState instead of an
 accumulating conversation transcript. See AGENTS.md and docs/CONTEXT_INVARIANTS.md.
