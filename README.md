@@ -158,8 +158,9 @@ Tested end-to-end through a local [9Router](https://9router.com/) instance (`OPE
 **Long-horizon results (`docs/WAREHOUSE_BENCHMARK.md`, `docs/REGISTRY_BENCHMARK.md`):** with the runtime keeping a generic
 ledger of tool facts (`ToolResult.facts` → `domain.<tool>.<key>`), Sonnet 5 scores **1.00** on a 300-order warehouse under this runtime vs 0.96 as a transcript
 (ReAct) agent, at ~1.0M vs ~8.5M prompt tokens and 15 vs 97 minutes; per-call cost is flat at order 300 where the transcript
-agent's has grown to 51K tokens. Gemma 4 12B (local, 2.6 s/order) scores **0.99** vs 0.83 as a transcript agent. The
-lesson that cost a day: bookkeeping is the runtime's job, not the model's.
+agent's has grown to 51K tokens. Gemma 4 12B (local) scores **1.00** on both the warehouse and a 200-order service-registry
+task vs 0.83 / 0.99 as a transcript agent, at 5–8× fewer tokens. The lesson that cost a day: bookkeeping is the runtime's
+job, not the model's — and a stateless step needs example values in tool descriptions, because it never sees its own past answers.
 
 Rule of thumb: frontier models → `tool`; smaller/open models or strict proxies → `prompted`; llama.cpp → `native` (the schema
 becomes a GBNF grammar). Reasoning models on llama.cpp need `openai_reasoning_effort` set, or they spend the whole

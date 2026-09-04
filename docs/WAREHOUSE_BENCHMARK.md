@@ -73,7 +73,8 @@ started before `inspect` existed and could not verify.
 | Kimi K3 | SKILL.state (*old build*) | 0.88 | 1.76M | 5.6K → 5.7K, flat | 94K | 2.9 h (NVIDIA stalls) | before inspect/seed/slim |
 | Kimi K3 | SKILL.state, current build | **0.94 over 153 orders** (49/50, 47/49, 43/49 per window) | 0.77M for 153 | 5.0K flat | 36K | 2.9 h, then stopped | three consecutive 300 s NVIDIA stalls tripped the decision-failure cap; timeouts now have their own budget and pause the run instead (fixed after this run) |
 | Gemma 4 12B (local) | ReAct | 0.83 | 6.7M (50% KV-cache reuse) | ~1K → 22K | 9K | 12 min | 131K window, no truncation |
-| **Gemma 4 12B** | **SKILL.state, generic tool-fact ledger** | **0.99** (298/300) | 1.13M | flat 8.3K chars, 2.6 s/call | 51K | **13 min** | no task-specific bookkeeping code at all |
+| **Gemma 4 12B** | **SKILL.state, generic ledger, thinking on (low)** | **1.00** (300/300) | 1.15M | flat 8.2K chars, 8.9 s/call | 265K | 45 min | no task-specific code; 0 stalls |
+| Gemma 4 12B | SKILL.state, generic ledger, thinking off | 0.99 (298/300) | 1.13M | flat 8.3K chars, 2.6 s/call | 51K | 13 min | no task-specific bookkeeping code at all |
 | Gemma 4 12B | SKILL.state, hand-written adjust effects (removed) | 0.99 (298/300) | 0.87M | flat 6.3K chars | 49K | 13 min | the version that was task-specific |
 | Gemma 4 12B | SKILL.state, runtime-kept shelves only | 0.71 over 238 | 0.71M | flat 6.3K chars | 45K | 12 min | then looped on `inspect S02`; remaining misses were capacity sums |
 | Gemma 4 12B | SKILL.state, model-kept books | 0.48 | 0.80M | flat 5.4K chars | 62K | 13 min | 82% → 23% over the run: arithmetic drift in the model's own table |
